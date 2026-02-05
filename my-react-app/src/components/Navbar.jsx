@@ -1,16 +1,15 @@
-import { useContext, useEffect, useMemo, useState } from "react";
-import axios from 'axios';
+import { useContext, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Heart, Bell, Menu, X } from "lucide-react";
-import { UserContext, SocketContext } from "../contexts";
+import { SocketContext } from "../contexts";
+import { useAuth } from "../contexts/AuthContext";
 import NotificationPanel from "./NotificationPanel";
 
-export default function Navbar({ user: controlledUser, socket, unreadCount = 0 }) {
+export default function Navbar({ socket, unreadCount = 0 }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user: contextUser, setUser: setUserContext } = useContext(UserContext) ?? {};
-  const [user, setLocalUser] = useState(controlledUser ?? contextUser ?? null);
+  const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,70 +21,19 @@ export default function Navbar({ user: controlledUser, socket, unreadCount = 0 }
     { label: "Community", path: "/community" },
   ];
 
-  useEffect(() => {
-    if (controlledUser !== undefined) {
-      setLocalUser(controlledUser);
-      return;
-    }
-
-    if (contextUser !== undefined) {
-      setLocalUser(contextUser);
-      return;
-    }
-
-    const loadUser = () => {
-      const storedUser = sessionStorage.getItem("user");
-      if (storedUser && storedUser !== "undefined") {
-        try {
-          const parsed = JSON.parse(storedUser);
-          setLocalUser(parsed);
-          setUserContext?.(parsed);
-        } catch (error) {
-          console.error("Lỗi khi parse user:", error);
-          sessionStorage.removeItem("user");
-          setLocalUser(null);
-          setUserContext?.(null);
-        }
-      } else {
-        setLocalUser(null);
-        setUserContext?.(null);
-      }
-    };
-
-    loadUser();
-    const handleUserChange = () => loadUser();
-    window.addEventListener("userChanged", handleUserChange);
-
-    return () => {
-      window.removeEventListener("userChanged", handleUserChange);
-    };
-  }, [controlledUser, contextUser, setUserContext]);
-
+  // Close dropdowns on route change
   useEffect(() => {
     setShowDropdown(false);
     setMobileOpen(false);
   }, [location.pathname]);
 
-
   const handleLogout = () => {
-    console.log("🚪 Đăng xuất...");
-    
     if (socket) {
-      console.log("🔌 Disconnecting socket...");
       socket.disconnect();
     }
     
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem('accessToken');
-    delete axios.defaults.headers.common['Authorization'];
-    console.log("🗑️ Đã xóa sessionStorage");
-    
-    setLocalUser(null);
-    setUserContext?.(null);
-    console.log("✅ Đã clear user context");
-    
+    logout();
     setShowDropdown(false);
-    window.dispatchEvent(new Event("userChanged"));
     navigate("/login");
   };
 
@@ -96,7 +44,7 @@ export default function Navbar({ user: controlledUser, socket, unreadCount = 0 }
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 text-rose-500">
             <Heart className="h-4 w-4" />
           </span>
-          <span className="tracking-tight">HUSTYEU</span>
+          <span className="tracking-tight">HUSTLove</span>
         </Link>
 
         <div className="hidden items-center justify-center md:flex">

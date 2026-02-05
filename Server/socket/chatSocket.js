@@ -23,8 +23,6 @@ export const initChatSocket = (io) => {
   const chatTimers = new Map(); // roomId -> timer
 
   io.on("connection", (socket) => {
-    console.log(`✅ User connected: ${socket.id}`);
-
 
 // ==========================================
 // AUTH USER (fix userId undefined)
@@ -43,7 +41,6 @@ socket.on("auth_user", async ({ token, userId }) => {
       const uid = payload.sub;
       socket.data.userId = uid.toString();
       socket.join(`user_${uid}`);
-      console.log(`🔐 Authenticated user via token: ${socket.data.userId}`);
       return;
     }
 
@@ -51,11 +48,8 @@ socket.on("auth_user", async ({ token, userId }) => {
     if (userId) {
       socket.data.userId = userId.toString();
       socket.join(`user_${userId}`);
-      console.log(`⚠️ Authenticated user via userId (legacy): ${socket.data.userId}`);
       return;
     }
-
-    console.log("❌ auth_user received empty credentials");
   } catch (err) {
     console.error('auth_user handler error', err);
   }
@@ -68,11 +62,8 @@ socket.on("auth_user", async ({ token, userId }) => {
 
     socket.on("find_partner", async (userData) => {
       try {
-        console.log(`🔍 ${userData.name} đang tìm partner...`);
-
         if (waitingQueue.length === 0) {
           waitingQueue.push({ ...userData, socketId: socket.id });
-          console.log("⏳ Added to queue");
           return;
         }
 
@@ -93,9 +84,6 @@ socket.on("auth_user", async ({ token, userId }) => {
           // ✅ KIỂM TRA XEM 2 NGƯỜI ĐÃ MATCH CHƯA
           const [u1, u2] = canonicalPair(currentUserId, candidateId);
           
-          console.log(`🔍 Checking match between ${userData.name} (${currentUserId}) and ${candidate.name} (${candidateId})`);
-          console.log(`🔍 Canonical pair: u1=${u1}, u2=${u2}`);
-          
           const existingMatch = await Match.findOne({
             user1Id: u1,
             user2Id: u2,
@@ -103,11 +91,7 @@ socket.on("auth_user", async ({ token, userId }) => {
           });
 
           if (existingMatch) {
-            console.log(`⚠️ SKIP ${candidate.name} - Already matched with ${userData.name} at ${existingMatch.matchedAt}`);
-            console.log(`   Match status: ${existingMatch.status}, conversationId: ${existingMatch.conversationId}`);
             continue; // Bỏ qua người này, tìm người khác
-          } else {
-            console.log(`✅ No existing match found - can pair ${userData.name} with ${candidate.name}`);
           }
 
           const compatibility = await matchingService.calculateCompatibility(
@@ -247,11 +231,8 @@ socket.on("auth_user", async ({ token, userId }) => {
 
           // ✅ BẮT ĐẦU TIMER 3 PHÚT
           startChatTimer(roomId, expiresAt, match._id, tempChat._id, io);
-
-          console.log(`💕 Matched! Room: ${roomId}, Score: ${bestScore}%`);
         } else {
           waitingQueue.push({ ...userData, socketId: socket.id });
-          console.log("⏳ No match, added to queue");
         }
 
       } catch (error) {
@@ -295,8 +276,6 @@ socket.on("auth_user", async ({ token, userId }) => {
           timestamp: new Date().toISOString()
         });
 
-        console.log(`💬 Message in ${roomId}: ${message.substring(0, 30)}...`);
-
       } catch (error) {
         console.error("❌ Error sending message:", error);
       }
@@ -318,7 +297,6 @@ socket.on("auth_user", async ({ token, userId }) => {
           const roomInfo = activeChatRooms.get(socket.id);
           if (roomInfo && roomInfo.userId) {
             userId = roomInfo.userId;
-            console.log(`ℹ️ Resolved userId from activeChatRooms: ${userId}`);
           }
         }
 
@@ -354,7 +332,6 @@ socket.on("auth_user", async ({ token, userId }) => {
 
             if (existing) {
               match = existing;
-              console.log(`🔁 Reusing existing match ${existing._id} between ${userId} and ${partnerId}`);
             } else {
               // create a new match record and mark it active
               const payload = {
@@ -379,7 +356,6 @@ socket.on("auth_user", async ({ token, userId }) => {
                 },
                 { new: true, upsert: true, setDefaultsOnInsert: true }
               );
-              console.log(`➕ Upserted match ${match._id} for users ${u1} & ${u2}`);
             }
           }
 
@@ -394,7 +370,6 @@ socket.on("auth_user", async ({ token, userId }) => {
           const roomInfo = activeChatRooms.get(socket.id);
           if (roomInfo && roomInfo.userId) {
             userId = roomInfo.userId;
-            console.log(`ℹ️ Resolved userId from activeChatRooms: ${userId}`);
           }
         }
 
@@ -404,7 +379,6 @@ socket.on("auth_user", async ({ token, userId }) => {
             if (temp) {
               if (temp.user1SocketId === socket.id) userId = temp.user1Id?.toString();
               else if (temp.user2SocketId === socket.id) userId = temp.user2Id?.toString();
-              if (userId) console.log(`ℹ️ Resolved userId from TemporaryChat: ${userId}`);
             }
           } catch (e) {
             console.error('❌ Error resolving userId from temp chat:', e);
@@ -428,7 +402,6 @@ socket.on("auth_user", async ({ token, userId }) => {
 
         // Perform atomic update and get PREVIOUS document to check whether the other side had already liked
         const prevMatch = await Match.findByIdAndUpdate(targetMatchId, update, { new: false });
-        console.log('💖 like_partner update', { targetMatchId, userId, isUser1, prevUser1Liked: !!prevMatch?.user1Liked, prevUser2Liked: !!prevMatch?.user2Liked });
 
         // ✅ Gửi tín hiệu cho partner biết rằng họ được like
         const chatRoom = activeChatRooms.get(socket.id);
@@ -450,7 +423,6 @@ socket.on("auth_user", async ({ token, userId }) => {
 
           // Move temp messages (if any) into Message collection using chatRoomId = matchId
           let tempChat = null;
-          console.log('➡️ Attempting temp message migration', { matchId: matchIdForChat, tempChatId: updatedMatch.tempChatId, roomInfo: chatRoom });
           if (updatedMatch.tempChatId) {
             try { tempChat = await TemporaryChat.findById(updatedMatch.tempChatId); } catch (e) { console.warn('❌ Error loading TemporaryChat by id:', e?.message || e); }
           }
@@ -464,7 +436,6 @@ socket.on("auth_user", async ({ token, userId }) => {
                   { user1Id: updatedMatch.user2Id, user2Id: updatedMatch.user1Id }
                 ]
               });
-              console.log('ℹ️ Fallback lookup by userIds', { found: !!tempChat, tempChatId: tempChat?._id });
             } catch (e) {
               console.warn('❌ Error finding fallback TemporaryChat by userIds:', e?.message || e);
             }
@@ -480,14 +451,9 @@ socket.on("auth_user", async ({ token, userId }) => {
                   { user2SocketId: chatRoom.partnerSocketId }
                 ]
               });
-              console.log('ℹ️ Fallback lookup by socketIds', { found: !!tempChat, tempChatId: tempChat?._id });
             } catch (e) {
               console.warn('❌ Error finding fallback TemporaryChat by socketIds:', e?.message || e);
             }
-          }
-
-          if (!tempChat) {
-            console.log('⚠️ No TemporaryChat found to migrate for match', matchIdForChat);
           }
 
           if (tempChat && Array.isArray(tempChat.messages) && tempChat.messages.length > 0) {
@@ -519,8 +485,6 @@ socket.on("auth_user", async ({ token, userId }) => {
             } catch (e) {
               console.warn('Could not delete TemporaryChat after migration', e?.message || e);
             }
-
-            console.log(`💬 Moved ${inserted.length || tempMessages.length} temp messages → match ${matchIdForChat}`);
           }
 
           // Notify both users using match id as conversationId
@@ -542,8 +506,6 @@ socket.on("auth_user", async ({ token, userId }) => {
 
           // Cancel 3-minute timer (if any)
           if (roomId) clearChatTimer(roomId);
-
-          console.log(`🎉 MUTUAL MATCH → Match ${matchIdForChat}`);
         }
       } catch (error) {
         console.error("❌ Error in like_partner:", error);
@@ -569,8 +531,6 @@ socket.on("auth_user", async ({ token, userId }) => {
         };
       }
       try {
-        console.log(`📨 Received send_message: conversationId=${conversationId}, senderId=${senderId}, message=${message}`);
-
         // Use senderId from payload or socket data
         const userId = senderId || socket.data.userId;
         if (!userId) {
@@ -609,8 +569,6 @@ socket.on("auth_user", async ({ token, userId }) => {
           status: 'sent',
           timestamp: new Date()
         });
-
-        console.log(`✅ Message saved: ${savedMessage._id}`);
 
         // Update lastMessage in Match (store text preview)
         match.lastMessage = {
@@ -657,8 +615,6 @@ socket.on("auth_user", async ({ token, userId }) => {
 
         io.to(user1Room).emit('new_message', payload);
         io.to(user2Room).emit('new_message', payload);
-
-        console.log(`💬 Message emitted to both users in match ${conversationId}`);
 
       } catch (error) {
         console.error("❌ Error sending message:", error.message);
@@ -720,7 +676,6 @@ socket.on("auth_user", async ({ token, userId }) => {
       try {
         socket.data.userId = userId;
         socket.join(`user_${userId}`);
-        console.log(`👤 User ${userId} joined personal room (socket ${socket.id})`);
       } catch (err) {
         console.error('❌ Error in join handler:', err);
       }
@@ -733,8 +688,6 @@ socket.on("auth_user", async ({ token, userId }) => {
     // 8. DISCONNECT (SỬA LẠI)
     // ==========================================
     socket.on("disconnect", async () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
-
     // Xóa khỏi hàng chờ
     const queueIndex = waitingQueue.findIndex(u => u.socketId === socket.id);
     if (queueIndex !== -1) {
@@ -761,8 +714,6 @@ socket.on("auth_user", async ({ token, userId }) => {
         activeChatRooms.delete(socket.id);
         activeChatRooms.delete(chatRoom.partnerSocketId);
         clearChatTimer(chatRoom.roomId);
-
-        console.log(`🧹 Room cleared: ${chatRoom.roomId}`);
         } catch (error) {
         console.error("❌ Error on disconnect:", error);
         }
@@ -806,8 +757,6 @@ socket.on("auth_user", async ({ token, userId }) => {
       io.to(roomId).emit("chat_expired", {
         message: "Thời gian chat đã hết! Hãy like nhau để tiếp tục trò chuyện."
       });
-
-      console.log(`⏰ Chat expired: ${roomId}`);
       
       chatTimers.delete(roomId);
     }, timeLeft);
@@ -824,7 +773,6 @@ socket.on("auth_user", async ({ token, userId }) => {
       clearInterval(timers.countdownInterval);
       clearTimeout(timers.expiryTimer);
       chatTimers.delete(roomId);
-      console.log(`⏰ Timer cleared: ${roomId}`);
     }
   }
 };

@@ -56,8 +56,6 @@ export const getPosts = async (req, res) => {
     if (userId) {
       const currentUser = await User.findById(userId).select('blockedUsers').lean();
       blockedUserIds = currentUser?.blockedUsers || [];
-      
-      console.log(`📋 User ${userId} has blocked ${blockedUserIds.length} users:`, blockedUserIds);
     }
 
     // ✅ QUERY với filter người bị chặn
@@ -68,16 +66,12 @@ export const getPosts = async (req, res) => {
       })
     };
 
-    console.log('🔍 Query filter:', JSON.stringify(query));
-
     const posts = await Post.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .populate('userId', 'name avatar gender age hometown')
       .lean();
-
-    console.log(`✅ Found ${posts.length} posts after blocking filter`);
 
     // ✅ Map kết quả với isLiked
     const result = posts.map(post => ({
@@ -185,8 +179,6 @@ export const getComments = async (req, res) => {
       .populate('userId', 'name avatar')
       .lean();
 
-    console.log(`✅ Found ${comments.length} comments (filtered ${blockedUserIds.length} blocked users)`);
-
     res.json({
       success: true,
       comments
@@ -262,7 +254,6 @@ export const createComment = async (req, res) => {
       await notification.populate('postId', 'content');
       
       const recipientId = notification.recipientId.toString();
-      console.log(`📤 Emitting notification to notifications_${recipientId}`, notification);
       
       io.to(`notifications_${recipientId}`).emit('new_notification', notification);
     }

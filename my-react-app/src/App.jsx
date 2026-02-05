@@ -14,113 +14,66 @@ import Community from "./pages/Community";
 import Chat from "./pages/Chat";
 import YourCrush from './pages/YourCrush';
 import { io } from "socket.io-client";
-import { useState, useEffect } from "react";
-import { SocketContext, UserContext } from "./contexts";
+import { useState, useEffect, useCallback } from "react";
+import { SocketContext } from "./contexts";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import ProtectedRoute, { PublicRoute } from "./components/ProtectedRoute";
 import axios from "./utils/axiosConfig";
 
 const BlankPage = () => <div className="min-h-screen bg-white pt-24" />;
 
-function App() {
+/**
+ * AppContent - Contains all app logic that needs auth context
+ */
+function AppContent() {
   const navigate = useNavigate();
+  const { user, logout, isAuthenticated } = useAuth();
   const [socket, setSocket] = useState(null);
-  const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const API_URL = import.meta.env.VITE_API_URL;
 
-  useEffect(() => {
-    const storedUser = sessionStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
-
-  // Set axios Authorization header from stored accessToken when app loads or user changes
-  useEffect(() => {
-    const token = sessionStorage.getItem('accessToken');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  }, [user]);
-
-  useEffect(() => {
-    const handleUserChange = () => {
-      const storedUser = sessionStorage.getItem("user");
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          console.error("Lỗi parse user từ sessionStorage:", error);
-          sessionStorage.removeItem("user");
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-    };
-
-    window.addEventListener("userChanged", handleUserChange);
-    return () => window.removeEventListener("userChanged", handleUserChange);
-  }, []);
-
   // Listen for session expiration from axios interceptor
   useEffect(() => {
     const handleSessionExpired = () => {
-      console.log('🔐 Session expired, logging out...');
-      setUser(null);
+      logout();
       setSocket(null);
       navigate('/login');
     };
 
     window.addEventListener('sessionExpired', handleSessionExpired);
     return () => window.removeEventListener('sessionExpired', handleSessionExpired);
-  }, [navigate]);
+  }, [navigate, logout]);
 
+  // Socket connection management
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
+      return;
+    }
 
-    console.log("🔌 Creating socket for user:", user.id);
     const newSocket = io(API_URL, { withCredentials: true });
 
     newSocket.on("connect", () => {
-      console.log("✅ Socket connected:", newSocket.id);
       newSocket.emit("set_user", { userId: user.id });
-      // Also emit server-expected auth/join events so user is in both rooms
-      try {
-        newSocket.emit('user:join', user.id); // postSocket
-      } catch (e) {
-        console.warn('user:join emit failed', e);
-      }
-      try {
-        // Use userId for socket auth (persistent connection doesn't work well with short-lived JWT)
-        newSocket.emit('auth_user', { userId: user.id });
-      } catch (e) {
-        console.warn('auth_user emit failed', e);
-      }
-      try {
-        // Join notification room to receive notification events
-        newSocket.emit('auth_notification', { userId: user.id });
-      } catch (e) {
-        console.warn('auth_notification emit failed', e);
-      }
-      try {
-        newSocket.emit('join_conversations', user.id); // ensure join of user_<id> room for chat messages
-      } catch (e) {
-        console.warn('join_conversations emit failed', e);
-      }
+      // Also emit server-expected auth/join events
+      try { newSocket.emit('user:join', user.id); } catch {}
+      try { newSocket.emit('auth_user', { userId: user.id }); } catch {}
+      try { newSocket.emit('auth_notification', { userId: user.id }); } catch {}
+      try { newSocket.emit('join_conversations', user.id); } catch {}
     });
 
     setSocket(newSocket);
 
     return () => {
-      console.log("🔌 Disconnecting socket");
       newSocket.disconnect();
     };
-  }, [user, API_URL]);
+  }, [user?.id, API_URL]);
 
-  // 🔔 Fetch notifications on app load
+  // Fetch notifications on app load
   useEffect(() => {
     if (!user?.id || !API_URL) return;
 
@@ -133,21 +86,20 @@ function App() {
           setUnreadCount(unread);
         }
       } catch (error) {
-        console.error("❌ Error fetching notifications:", error);
+        console.error("Error fetching notifications:", error);
       }
     };
 
     fetchNotifications();
   }, [user?.id, API_URL]);
 
-  // 🔔 Listen to new notifications via socket
+  // Listen to socket notifications
   useEffect(() => {
     if (!socket) return;
-    // When a mutual match happens anywhere in the app, open Messenger and select the match
+    
     const handleMutualNavigate = ({ conversationId, matchId }) => {
       try {
         const id = matchId || conversationId;
-        console.debug('App socket mutual_match received', { conversationId, matchId, id });
         if (id) navigate(`/messenger/${encodeURIComponent(String(id))}`);
         else navigate('/messenger');
       } catch (e) {
@@ -157,26 +109,19 @@ function App() {
     socket.on('mutual_match', handleMutualNavigate);
 
     const handleNewNotification = ({ notification }) => {
-      console.log('🔔 Received new_notification event:', notification);
-      // Add new notification to top of array
       setNotifications(prev => [notification, ...prev]);
-      // Increment unread if not read
       if (!notification.isRead) {
         setUnreadCount(prev => prev + 1);
       }
     };
-
     socket.on("new_notification", handleNewNotification);
 
-    // Also listen for new chat messages and push them into notifications
     const handleNewMessageForNotif = (payload) => {
-      console.debug('socket new_message received at App:', payload);
       try {
-        // payload may be { conversationId, message } or { message }
         const message = payload?.message || payload;
         if (!message) return;
 
-        // Ignore messages sent by ourselves to avoid self-notifications
+        // Ignore messages sent by ourselves
         if (user?.id && (String(message.senderId) === String(user.id))) {
           return;
         }
@@ -190,7 +135,6 @@ function App() {
           content: `${senderName}: ${preview}`,
           createdAt: new Date().toISOString(),
           isRead: false,
-          // attach reference so click can navigate later
           meta: {
             conversationId: payload.conversationId || message.conversationId || message.chatRoomId
           }
@@ -202,7 +146,6 @@ function App() {
         console.error('Error handling new_message for notif', e);
       }
     };
-
     socket.on('new_message', handleNewMessageForNotif);
 
     return () => {
@@ -210,32 +153,48 @@ function App() {
       socket.off('new_message', handleNewMessageForNotif);
       socket.off('mutual_match', handleMutualNavigate);
     };
-  }, [socket, user?.id]);
+  }, [socket, user?.id, navigate]);
 
   return (
-    <UserContext.Provider value={{ user, setUser }}>
-      <SocketContext.Provider value={{ socket, notifications, unreadCount, setNotifications, setUnreadCount }}>
-        <Navbar user={user} socket={socket} unreadCount={unreadCount} />
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/feed" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/profile/manage-photos" element={<PhotoManagement />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/messenger" element={<Messenger />} />
-          <Route path="/library-invite" element={<LibraryInvite />} />
-          <Route path="/your-crush" element={<YourCrush />} />
-          <Route path="/complete-profile" element={<CompleteProfile />} />
-          <Route path="/home" element={<BlankPage />} />
-          <Route path="/onboarding/photo-upload" element={<PhotoManagement />} />
-          <Route path="/onboarding/opening-move" element={<OpeningMoveOnboarding onComplete={() => { window.location.href = '/feed'; }} />} />
-          <Route path="/community" element={<Community />} />
-          <Route path="/messenger/:id" element={<Messenger />} />
-        </Routes>
-      </SocketContext.Provider>
-    </UserContext.Provider>
+    <SocketContext.Provider value={{ socket, notifications, unreadCount, setNotifications, setUnreadCount }}>
+      <Navbar socket={socket} unreadCount={unreadCount} />
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        
+        {/* Protected routes - require authentication */}
+        <Route path="/feed" element={<ProtectedRoute requireProfile><Home /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/profile/manage-photos" element={<ProtectedRoute><PhotoManagement /></ProtectedRoute>} />
+        <Route path="/chat" element={<ProtectedRoute requireProfile><Chat /></ProtectedRoute>} />
+        <Route path="/messenger" element={<ProtectedRoute requireProfile><Messenger /></ProtectedRoute>} />
+        <Route path="/messenger/:id" element={<ProtectedRoute requireProfile><Messenger /></ProtectedRoute>} />
+        <Route path="/library-invite" element={<ProtectedRoute requireProfile><LibraryInvite /></ProtectedRoute>} />
+        <Route path="/your-crush" element={<ProtectedRoute requireProfile><YourCrush /></ProtectedRoute>} />
+        <Route path="/community" element={<ProtectedRoute requireProfile><Community /></ProtectedRoute>} />
+        
+        {/* Onboarding routes - require auth but not complete profile */}
+        <Route path="/complete-profile" element={<ProtectedRoute><CompleteProfile /></ProtectedRoute>} />
+        <Route path="/onboarding/photo-upload" element={<ProtectedRoute><PhotoManagement /></ProtectedRoute>} />
+        <Route path="/onboarding/opening-move" element={<ProtectedRoute><OpeningMoveOnboarding onComplete={() => { window.location.href = '/feed'; }} /></ProtectedRoute>} />
+        
+        {/* Fallback */}
+        <Route path="/home" element={<BlankPage />} />
+      </Routes>
+    </SocketContext.Provider>
+  );
+}
+
+/**
+ * App - Root component wrapped with AuthProvider
+ */
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

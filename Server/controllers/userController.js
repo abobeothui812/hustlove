@@ -63,15 +63,11 @@ export const blockUser = async (req, res) => {
           return res.status(httpStatus.NOT_FOUND).send({ success: false, message: 'Người chặn không tồn tại.' });
         }
 
-        console.log(`User ${blockerId} blocked ${targetId}. Current blocked count: ${updatedBlocker.blockedUsers.length}`);
-
-        return res.status(httpStatus.OK).send({ success: true, message: 'Người dùng đã bị chặn.' });
-        
-        
-    } catch (error) {
-        console.error('blockUser error', error);
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Không thể chặn người dùng.' });
-    }
+        return res.status(httpStatus.OK).send({ success: true, message: 'Đã chặn người dùng thành công.' });
+    } catch (error) {
+        console.error('blockUser error', error);
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({ success: false, message: 'Không thể chặn người dùng.' });
+    }
 };
 
 export const getProfile = async (req, res) => {

@@ -17,5 +17,4 @@ export async function moveTempMessagesToConversation(tempChatId, matchId) {
   await Message.insertMany(permanentMessages);
 
   await TemporaryChat.findByIdAndDelete(tempChatId);
-  console.log(`💬 Moved ${permanentMessages.length} messages to match ${matchId}`);
 }

@@ -45,14 +45,11 @@ export const getMatchedUsers = async (req, res) => {
       ]
     }).populate('user1Id', 'name avatar').populate('user2Id', 'name avatar');
 
-    console.log(`ℹ️ Found ${matches.length} matches for user ${userId}`);
-
     // Deduplicate by partner user id: prefer a 'matched' status over 'active', then newest updatedAt
     const byPartner = new Map();
     for (const m of matches) {
       // Skip matches where either user has been deleted from DB
       if (!m.user1Id || !m.user2Id) {
-        console.log(`⚠️ Skipping match ${m._id} - one of the users has been deleted`);
         continue;
       }
       

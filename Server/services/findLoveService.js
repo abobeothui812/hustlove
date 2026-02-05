@@ -488,13 +488,10 @@ export const findLoveService = {
           targetUserId,
           matchId
         );
-        console.log(`✅ Match notifications created for match: ${matchId}`);
       } catch (error) {
         console.error('❌ Error creating match notifications:', error);
         // Don't throw - notifications are secondary feature
       }
-    } else {
-      console.log(`ℹ️ Match ${matchId} already exists, skipping notification creation`);
     }
 
     return {

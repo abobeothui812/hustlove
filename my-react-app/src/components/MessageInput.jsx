@@ -2,10 +2,12 @@ import { memo, useCallback, useRef, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Smile, Image as ImageIcon, Send } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyping, conversationId }) {
+  const { user, token } = useAuth();
   const fileRef = useRef(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const emojis = ['😊','😍','😂','😢','😮','🔥','🎉','💖','😉','🤗'];
@@ -19,15 +21,13 @@ const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyp
       if (!file || !conversationId) return;
 
       const form = new FormData();
-      const stored = sessionStorage.getItem('user');
-      const userObj = stored ? JSON.parse(stored) : null;
-      const userId = userObj?.id;
+      const userId = user?.id || user?._id;
       form.append('image', file);
       if (userId) form.append('userId', userId);
 
       try {
         const res = await axios.post(`${API_URL}/api/match/${conversationId}/upload`, form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+          headers: { 'Content-Type': 'multipart/form-data', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         });
         const url = res.data?.url || res.data?.secure_url || null;
         if (url) {

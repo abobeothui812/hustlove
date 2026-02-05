@@ -37,7 +37,6 @@ router.post('/posts', requireAuth, upload.single('image'), async (req, res) => {
 
     // 1. Xử lý upload ảnh nếu có file được gửi lên
     if (imageFile) {
-      console.log('Uploading image for post...');
       try {
         // Gọi hàm upload ảnh Cloudinary
         const url = await uploadPostImage(
@@ -46,7 +45,6 @@ router.post('/posts', requireAuth, upload.single('image'), async (req, res) => {
           imageFile.mimetype // Mime type của file
         );
         imageUrls.push({ url: url });
-        console.log('Image uploaded successfully:', url);
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
         // Nếu upload ảnh thất bại, trả về lỗi
@@ -99,8 +97,6 @@ router.get('/posts', async (req, res) => {
     if (userId) {
       const currentUser = await User.findById(userId).select('blockedUsers').lean();
       blockedUserIds = currentUser?.blockedUsers || [];
-      
-      console.log(`📋 User ${userId} has blocked ${blockedUserIds.length} users:`, blockedUserIds);
     }
 
     // ✅ QUERY với filter người bị chặn
@@ -111,16 +107,12 @@ router.get('/posts', async (req, res) => {
       })
     };
 
-    console.log('🔍 Query filter:', JSON.stringify(query));
-
     const posts = await Post.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
       .populate('userId', 'name avatar gender age hometown')
       .lean();
-
-    console.log(`✅ Found ${posts.length} posts after blocking filter`);
 
     // Add isLiked flag for current user
     const postsWithLikeStatus = posts.map(post => ({
@@ -288,7 +280,6 @@ router.delete('/posts/:postId', async (req, res) => {
     // ✅ EMIT SOCKET EVENT để tất cả users thấy real-time
     if (req.io) {
       req.io.emit('post:delete', postId);
-      console.log('🗑️ Socket emitted: post:delete', postId);
     }
 
     res.json({
@@ -319,8 +310,6 @@ router.get('/posts/:postId/comments', async (req, res) => {
     if (userId) {
       const currentUser = await User.findById(userId).select('blockedUsers').lean();
       blockedUserIds = currentUser?.blockedUsers || [];
-      
-      console.log(`💬 User ${userId} has blocked ${blockedUserIds.length} users for comments`);
     }
 
     // ✅ QUERY với filter người bị chặn
@@ -363,8 +352,6 @@ router.get('/posts/:postId/comments', async (req, res) => {
         };
       })
     );
-
-    console.log(`✅ Found ${commentsWithReplies.length} comments (filtered blocked users)`);
 
     res.json({
       success: true,
@@ -542,12 +529,6 @@ router.delete('/comments/:commentId', async (req, res) => {
     // ✅ EMIT SOCKET (QUAN TRỌNG)
     if (req.io) {
       req.io.emit('comment:delete', {
-        commentId,
-        postId: comment.postId,
-        deletedBy: userId
-      });
-
-      console.log('🗑️ Socket emitted: comment:delete', {
         commentId,
         postId: comment.postId,
         deletedBy: userId

@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Sparkles } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -13,6 +14,7 @@ export default function Register() {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
 
   const updateField = (field) => (event) => {
@@ -39,57 +41,23 @@ export default function Register() {
 
       const res = await axios.post(`${API_URL}/api/auth/register`, payload, {
         headers: { "Content-Type": "application/json" },
-        withCredentials: true, // keep refresh token cookie
+        withCredentials: true,
       });
 
-      const user = res.data?.user;
+      const { user, accessToken } = res.data;
 
       if (!user) {
         throw new Error("Không nhận được thông tin người dùng.");
       }
 
-      const userForSession = {
-        _id: user.id || user._id,
-        id: user.id || user._id,
-        name: user.name,
-        email: user.email,
-        gender: user.gender || "Other",
-        dob: user.dob || null,
-        age: user.age || null,
-        avatar: user.avatar || "",
-        career: user.career || user.job || "",
-        job: user.job || user.career || "",
-        hometown: user.hometown || user.location || "",
-        location: user.location || "",
-        geoLocation: user.geoLocation || null,
-        hobbies: user.hobbies || [],
-        bio: user.bio || "",
-        zodiac: user.zodiac || "Unknown",
-        preferences: user.preferences || null,
-        lookingFor: user.preferences?.lookingFor || user.lookingFor || "All",
-        height: (() => {
-          const numeric = Number(user.height);
-          if (!Number.isFinite(numeric)) {
-            return null;
-          }
-          const truncated = Math.trunc(numeric);
-          return truncated >= 120 && truncated <= 220 ? truncated : null;
-        })(),
-        isProfileComplete: user.isProfileComplete ?? user.profileCompleted ?? false,
-      };
+      // Use AuthContext login - handles storage and normalization
+      const loggedInUser = login(user, accessToken);
 
-      sessionStorage.setItem("user", JSON.stringify(userForSession));
-      window.dispatchEvent(new Event("userChanged"));
-      navigate(userForSession.isProfileComplete ? "/feed" : "/complete-profile");
-      // store accessToken so frontend can call protected APIs
-      if (res.data?.accessToken) {
-        sessionStorage.setItem('accessToken', res.data.accessToken);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.accessToken}`;
-      }
+      // Navigate based on profile completion
+      navigate(loggedInUser.isProfileComplete ? "/feed" : "/complete-profile", { replace: true });
     } catch (err) {
-      console.error("❌ Lỗi khi gửi request:", err);
+      console.error("Lỗi khi gửi request:", err);
       
-      // Xử lý lỗi từ express-validator (trả về mảng errors)
       let errorMessage;
       if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
         errorMessage = err.response.data.errors.map(e => e.msg).join(", ");

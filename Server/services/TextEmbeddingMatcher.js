@@ -10,8 +10,6 @@ class TextEmbeddingMatcher {
   async initialize() {
     if (this.isInitialized) return;
     
-    console.log('🚀 Loading embedding model...');
-    
     try {
       this.embedder = await pipeline(
         'feature-extraction',
@@ -20,7 +18,6 @@ class TextEmbeddingMatcher {
       );
       
       this.isInitialized = true;
-      console.log('✅ Embedding model loaded successfully!');
     } catch (error) {
       console.error('❌ Error loading model:', error);
       throw error;
@@ -105,12 +102,6 @@ class TextEmbeddingMatcher {
     return { score: 0, matches: [], totalMatches: 0 };
   }
 
-  console.log('\n🎯 HOBBY MATCHING DEBUG:');
-  console.log('Raw User1 hobbies:', hobbies1);
-  console.log('Raw User2 hobbies:', hobbies2);
-  console.log('Normalized User1 hobbies:', list1);
-  console.log('Normalized User2 hobbies:', list2);
-
   const embeddings1 = await Promise.all(
     list1.map(h => this.getEmbedding(h))
   );
@@ -125,21 +116,14 @@ class TextEmbeddingMatcher {
     let maxSim = 0;
     let bestMatchIdx = -1;
 
-    console.log(`\n  Comparing "${list1[i]}":`);
-
     for (let j = 0; j < list2.length; j++) {
       const sim = this.cosineSimilarity(embeddings1[i], embeddings2[j]);
-
-      console.log(`    → "${list2[j]}": ${(sim * 100).toFixed(1)}%`);
 
       if (sim > maxSim) {
         maxSim = sim;
         bestMatchIdx = j;
       }
     }
-
-    const bestMatch = bestMatchIdx !== -1 ? list2[bestMatchIdx] : null;
-    console.log(`    ✅ Best match: "${bestMatch}" (${(maxSim * 100).toFixed(1)}%)`);
 
     if (maxSim >= 0 && bestMatchIdx !== -1) {
       matches.push({
@@ -152,9 +136,6 @@ class TextEmbeddingMatcher {
   }
 
   const score = (totalScore / list1.length) * 100;
-
-  console.log(`\n  📊 Final hobby score: ${score.toFixed(1)}%`);
-  console.log(`  🎯 Matches found: ${matches.length}/${list1.length}`);
 
   return {
     score: Math.round(score * 10) / 10,
@@ -254,35 +235,27 @@ class TextEmbeddingMatcher {
     // 1. Giới tính
     const genderScore = this.checkGenderCompatibility(user1, user2);
     breakdown.gender = Math.round(genderScore * 100);
-    console.log(`♉ Điểm giới tính :`, Math.round(genderScore * 100));
 
     // 2. Sở thích
-    console.log(`sở thích của 2 user :`,user1.hobbies, user2.hobbies)
     const hobbyResult = await this.matchHobbyLists(user1.hobbies, user2.hobbies);
     breakdown.hobbies = hobbyResult.score;
     breakdown.hobbyMatches = hobbyResult.matches;
-    console.log(`♊ Điểm sở thích :`, Math.round(hobbyResult.score));
-    console.log('Chi tiết sở thích trùng:', hobbyResult.matches);
 
     // 3. Tuổi
     const ageScore = this.calculateAgeCompatibility(user1.age, user2.age);
     breakdown.age = Math.round(ageScore * 100);
-    console.log(`♋ Điểm tuổi :`, Math.round(ageScore * 100));
 
     // 4. Nghề nghiệp
     const careerScore = await this.calculateCareerSimilarity(user1.career, user2.career);
     breakdown.career = Math.round(careerScore * 100);
-    console.log(`♌ Điểm nghề nghiệp :`, Math.round(careerScore * 100));
 
     // 5. Quê quán
     const locationScore = this.calculateLocationCompatibility(user1.location, user2.location);
     breakdown.location = Math.round(locationScore * 100);
-    console.log(`♍ Điểm quê quán :`, Math.round(locationScore * 100));
 
     // 6. Cung hoàng đạo
     const zodiacScore = this.calculateZodiacCompatibility(user1.zodiac, user2.zodiac);
     breakdown.zodiac = Math.round(zodiacScore * 100);
-    console.log(`♎ Điểm cung hoàng đạo :`, Math.round(zodiacScore * 100));
 
     // Tổng điểm
     totalScore += genderScore * weights.gender;
@@ -293,7 +266,6 @@ class TextEmbeddingMatcher {
     totalScore += zodiacScore * weights.zodiac;
 
     const overallScore = Math.round(totalScore * 100);
-    console.log(`📊 Tổng điểm tương thích: ${overallScore}`);
 
     return {
       overallScore,
@@ -335,7 +307,6 @@ async findBestMatches(currentUser, userList, topK = 10) {
 
   clearCache() {
     this.cache.clear();
-    console.log('🧹 Cache cleared');
   }
 
   getCacheStats() {

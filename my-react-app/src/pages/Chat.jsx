@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useContext } from "react";
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SocketContext } from "../contexts";
+import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 
 const pastelGradient = 'bg-[#fff5f8]';
@@ -10,7 +11,7 @@ const pastelGradient = 'bg-[#fff5f8]';
 
 export default function RandomChat() {
   const { socket } = useContext(SocketContext);
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [partner, setPartner] = useState(null);
   const [isFinding, setIsFinding] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -37,38 +38,26 @@ export default function RandomChat() {
   const conversationIdRef = useRef(null);
   
   const messagesEndRef = useRef(null);
+  const navigate = useNavigate();
 
-  // ✅ LOAD USER từ sessionStorage
+  // ✅ VALIDATE USER DATA
   useEffect(() => {
-    const userDataString = sessionStorage.getItem("user");
-    if (!userDataString) {
-      toast.error("Vui lòng đăng nhập!");
+    if (!user) {
       return;
     }
     
-    const userData = JSON.parse(userDataString);
-    
-    if (!userData.id || !userData.gender || !userData.age) {
+    if (!user.id || !user.gender || !user.age) {
       toast.error("Vui lòng hoàn thiện thông tin cá nhân!");
       return;
     }
-    
-    setUser(userData);
-    console.log("✅ User loaded:", userData);
-  }, []);
+  }, [user]);
 
   // ✅ SOCKET CONNECTION
-const navigate = useNavigate();
-
   useEffect(() => {
   if (!socket) return;
 
   // ===== PARTNER FOUND =====
   socket.on("partner_found", (data) => {
-    console.log("💞 Partner found:", data);
-    console.log("🔍 Partner hobbies:", data.hobbies); // ✅ THÊM DÒNG NÀY
-    console.log("🔍 Partner hobbies type:", typeof data.hobbies); // ✅ VÀ DÒNG NÀY
-    console.log("🔍 Is array:", Array.isArray(data.hobbies)); 
     setPartner(data);
     setCompatibilityScore(data.compatibilityScore);
     setMatchId(data.matchId);
@@ -97,7 +86,6 @@ const navigate = useNavigate();
 
   // ===== RECEIVE TEMP MESSAGE =====
   socket.on("receive_temp_message", (data) => {
-    console.log("📩 Received message:", data);
     setMessages(prev => [...prev, {
       from: "partner",
       text: data.message,
@@ -108,7 +96,6 @@ const navigate = useNavigate();
   // ===== PARTNER LIKED YOU =====
   socket.on("partner_liked_you", () => {
     setPartnerLiked(true);
-    console.log("💖 Partner liked you!");
   });
 
   // ===== MUTUAL MATCH =====
@@ -116,7 +103,6 @@ const navigate = useNavigate();
     // Accept multiple possible payload shapes: { conversationId }, { matchId }, or { matchId: ... }
     const convId = payload?.conversationId || payload?.matchId || payload?.chatRoomId || payload?.conversation || payload?.id || null;
     const message = payload?.message || payload?.msg || payload?.text || '';
-    console.log("🎉 Mutual match received; payload:", payload, "resolvedId:", convId);
 
     if (!convId) {
       console.error("❌ No conversationId/matchId in mutual_match event!", payload);
@@ -132,7 +118,6 @@ const navigate = useNavigate();
     toast.success(message || "🎉 Cả hai đã thích nhau! Giờ bạn có thể chat vĩnh viễn!");
 
     // Navigate to messenger for this match
-    console.log(`🚀 Navigating to /messenger/${convId}`);
     setTimeout(() => {
       navigate(`/messenger/${convId}`, { replace: true });
     }, 500);
@@ -161,7 +146,6 @@ const navigate = useNavigate();
 
 
   return () => {
-    console.log("🔌 Removing chat listeners");
     socket.off("partner_found");
     socket.off("timer_update");
     socket.off("chat_expired");
@@ -213,10 +197,6 @@ const navigate = useNavigate();
       lookingFor: user.lookingFor || "Tất cả"
     };
 
-    console.log("🚀 Finding partner with data:", userData);
-    console.log("🚀 user.hobbies:", user.hobbies);
-    console.log("🚀 user.zodiac:", user.zodiac);
-    console.log("🚀 user.lookingFor:", user.lookingFor);
     socket.emit("find_partner", userData);
   };
 
@@ -264,7 +244,6 @@ const navigate = useNavigate();
   const handleLike = () => {
     if (!socket || !matchId || iLiked) return;
 
-    console.log("💖 Sending like for match:", matchId);
     socket.emit("like_partner", { matchId });
     setILiked(true);
   };

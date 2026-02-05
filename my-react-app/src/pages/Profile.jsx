@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../contexts/AuthContext';
 import {
   ArrowLeft,
   ArrowRight,
@@ -78,10 +79,7 @@ const normalizeHeightValue = (value, { asString = false } = {}) => {
 export default function Profile() {
   const navigate = useNavigate();
   const API_URL = import.meta.env.VITE_API_URL;
-  const currentUser = useMemo(
-    () => JSON.parse(sessionStorage.getItem('user') || '{}'),
-    [],
-  );
+  const { user: currentUser, updateUser, token } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -364,7 +362,6 @@ export default function Profile() {
         avatar: formData.photoGallery[0] || profile?.avatar || '',
       };
 
-      const token = sessionStorage.getItem('accessToken');
       const res = await axios.put(`${API_URL}/api/users/${userId}/profile`, payload, {
         headers: { 
           'Content-Type': 'application/json',
@@ -386,20 +383,16 @@ export default function Profile() {
         photoGallery: Array.isArray(nextUser.photoGallery) ? nextUser.photoGallery : prev.photoGallery,
       }));
       const storedHeight = normalizeHeightValue(nextUser.height) ?? normalizedHeightForSubmit;
-      sessionStorage.setItem(
-        'user',
-        JSON.stringify({
-          ...(currentUser || {}),
-          ...nextUser,
-          id: nextUser.id || nextUser._id,
-          _id: nextUser._id || nextUser.id,
-          avatar: nextUser.avatar || payload.avatar,
-          hometown: nextUser.hometown || payload.hometown || currentUser.hometown || '',
-          location: nextUser.location || payload.location || currentUser.location || '',
-          height: storedHeight,
-        }),
-      );
-      window.dispatchEvent(new Event('userChanged'));
+      
+      // Update auth context with new user data
+      updateUser({
+        ...nextUser,
+        avatar: nextUser.avatar || payload.avatar,
+        hometown: nextUser.hometown || payload.hometown || currentUser?.hometown || '',
+        location: nextUser.location || payload.location || currentUser?.location || '',
+        height: storedHeight,
+      });
+      
       setIsEditing(false);
       setMessage('Cập nhật hồ sơ thành công.');
     } catch (error) {

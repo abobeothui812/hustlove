@@ -11,6 +11,7 @@ import axios from 'axios';
 import { Heart } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SocketContext } from '../contexts';
+import { useAuth } from '../contexts/AuthContext';
 import ChatHeader from './ChatHeader';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -20,6 +21,7 @@ export default function ChatPanel({ selectedConversationId, conversations, onCon
   const location = useLocation();
   const targetConversationId = location.state?.conversationId;
   const socket = useContext(SocketContext);
+  const { user, token } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
 
   const [messages, setMessages] = useState([]);
@@ -34,8 +36,6 @@ export default function ChatPanel({ selectedConversationId, conversations, onCon
   const shouldAutoScrollRef = useRef(true);
   const lastMessageMetaRef = useRef({ id: null, fromSelf: false });
   const targetHandledRef = useRef(false);
-
-  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 
   useEffect(() => {
     selectedConversationRef.current = selectedConversationId;

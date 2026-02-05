@@ -30,20 +30,16 @@ const moves = [
 const run = async () => {
   try {
     await connectDB();
-    console.log('Seeding OpeningMove documents...');
 
     for (const m of moves) {
       const existing = await OpeningMove.findOne({ text: m.text }).exec();
       if (existing) {
         await OpeningMove.updateOne({ _id: existing._id }, { $set: { category: m.category, isActive: m.isActive } }).exec();
-        console.log('Updated:', m.text);
       } else {
         await OpeningMove.create(m);
-        console.log('Inserted:', m.text);
       }
     }
 
-    console.log('Seeding complete.');
     process.exit(0);
   } catch (err) {
     console.error('Seeding failed:', err);

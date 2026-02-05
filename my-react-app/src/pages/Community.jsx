@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useContext } from 'react';
 // ✅ IMPORT THÊM các icon liên quan đến ảnh
 import { Heart, MessageCircle, Send, X, Trash2, MoreHorizontal, Image, XCircle } from 'lucide-react'; 
 import { SocketContext } from '../contexts';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 import InputModal from '../components/InputModal';
@@ -9,17 +10,8 @@ import InputModal from '../components/InputModal';
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function Community() {
-  const storedUser = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
-
-  const userId = storedUser?.id || storedUser?._id;
-  const userName = storedUser?.name || 'Ẩn danh';
-
+  const { user: storedUser, token } = useAuth();
+  const userId = storedUser?.id || storedUser?._id;
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,7 +73,6 @@ export default function Community() {
     if (fileInput) fileInput.value = null; 
   };
 
-
   // ==============================
   // FETCH FEED - giữ nguyên
   // ==============================
@@ -97,10 +88,8 @@ export default function Community() {
         const res = await fetch(`${API_URL}/api/posts?userId=${userId}`);
         const data = await res.json();
         
-        console.log('📋 Posts loaded:', data.posts?.length || 0);
-        if (data.posts?.[0]) {
-          console.log('👤 Sample post userId structure:', data.posts[0].userId);
-        }
+       if (data.posts?.[0]) {
+         }
         
         setPosts(data.posts || []);
       } catch (err) {
@@ -157,7 +146,6 @@ export default function Community() {
       );
     });
 
-
     socket.on('notification:new', (notification) => {
       const notificationRecipientId = notification.recipientId?.toString?.() || notification.recipientId;
       const currentUserId = userId?.toString?.() || userId;
@@ -186,34 +174,27 @@ export default function Community() {
       const postAuthorId = (post.userId?._id || post.userId?.id || post.userId)?.toString();
       const currentUserId = userId?.toString();
       
-      console.log('📥 Socket post:new received:', post._id, 'from:', post.userId?.name, 'author:', postAuthorId, 'currentUser:', currentUserId);
-      
-      // ⛔ IGNORE nếu post này là của CHÍNH MÌNH (đã optimistic update rồi)
+// ⛔ IGNORE nếu post này là của CHÍNH MÌNH (đã optimistic update rồi)
       if (postAuthorId === currentUserId) {
-        console.log('⏭️ Skipping own post from socket (already added via optimistic update)');
         return;
       }
       
       // Check nếu author bị chặn thì không thêm vào feed
       if (!blockedUsers.includes(postAuthorId)) {
-        console.log('✅ Adding new post from:', post.userId?.name);
-        setPosts(prev => {
+setPosts(prev => {
           // Tránh duplicate nếu bài đăng này đã tồn tại
           if (prev.some(p => p._id === post._id)) {
-            console.log('⏭️ Post already exists, skipping');
-            return prev;
+return prev;
           }
           return [post, ...prev];
         });
       } else {
-        console.log('🚫 Blocked new post from:', post.userId?.name, postAuthorId);
-      }
+}
     });
 
     // ✅ NEW: Real-time delete post
     socket.on('post:delete', postId => {
-      console.log('🗑️ Real-time: Post deleted:', postId);
-      setPosts(prev => prev.filter(p => p._id !== postId));
+setPosts(prev => prev.filter(p => p._id !== postId));
     });
 
     // ✅ NEW: Real-time delete comment
@@ -221,9 +202,7 @@ export default function Community() {
       // ⛔ BỎ QUA nếu chính mình xóa (đã optimistic update rồi)
       if (deletedBy?.toString() === userId?.toString()) return;
 
-      console.log('🗑️ Realtime comment delete from other user');
-
-      setPosts(prev =>
+setPosts(prev =>
         prev.map(p =>
           p._id === postId
             ? {
@@ -301,16 +280,7 @@ export default function Community() {
         reason: reason || undefined,
     };
 
-    console.log('🎯 Block/Report request:', {
-        type,
-        apiUrl,
-        targetId,
-        targetName,
-        blockerId: currentUserId,
-        requestBody
-    });
-
-    setActionLoading(true);
+   setActionLoading(true);
     setShowMenu({});
 
     try {
@@ -321,9 +291,7 @@ export default function Community() {
         });
 
         const responseData = await res.json();
-        console.log('📥 Server response:', responseData);
-
-        if (!res.ok) {
+       if (!res.ok) {
             throw new Error(responseData.message || 'Yêu cầu thất bại từ Server');
         }
 
@@ -343,8 +311,7 @@ export default function Community() {
                 const isBlocked = postUserId === targetId;
                 
                 if (isBlocked) {
-                    console.log('🚫 Filtering out post from blocked user:', p._id);
-                }
+                   }
                 
                 return !isBlocked;
             }));
@@ -367,11 +334,8 @@ export default function Community() {
 			return;
 		}
 
-		// ensure we have a valid userId (try stored state or sessionStorage fallback)
-		const sessionUser = (() => {
-			try { return JSON.parse(sessionStorage.getItem('user') || '{}'); } catch { return {}; }
-		})();
-		const uid = (userId || sessionUser?.id || sessionUser?._id);
+		// ensure we have a valid userId
+		const uid = userId;
 		if (!uid) {
 			toast.error('Vui lòng đăng nhập để đăng bài.');
 			return;
@@ -389,7 +353,6 @@ export default function Community() {
 		try {
 			setSubmitting(true);
 			console.debug('Creating post', { userId: uid, hasImage: !!selectedImage, contentLength: (content||'').length });
-			const token = sessionStorage.getItem('accessToken');
 			const res = await fetch(`${API_URL}/api/posts`, {
 				method: 'POST',
 				// Let browser set Content-Type for FormData; include Authorization if present
@@ -406,15 +369,10 @@ export default function Community() {
 			const data = await res.json();
 			const newPost = data.post; 
       
-			console.log('📝 New post created:', newPost._id, 'createdAt:', newPost.createdAt);
-      
-			// ✅ FIX REALTIME: Cập nhật state posts ngay lập tức
+// ✅ FIX REALTIME: Cập nhật state posts ngay lập tức
 			if (newPost) {
 				setPosts(prev => {
-					console.log('📊 Current posts count:', prev.length);
-					console.log('📊 First post createdAt:', prev[0]?.createdAt);
-					console.log('📊 New post createdAt:', newPost.createdAt);
-					return [newPost, ...prev];
+return [newPost, ...prev];
 				});
 			}
 
@@ -434,19 +392,15 @@ export default function Community() {
   // ==============================
   const toggleLike = async postId => {
     try {
-      console.log('👉 Clicking like for post:', postId);
-      const res = await fetch(`${API_URL}/api/posts/${postId}/like`, {
+     const res = await fetch(`${API_URL}/api/posts/${postId}/like`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       });
 
       const data = await res.json();
-      console.log('✅ Like response:', data);
-
-      if (data.success) {
-        console.log('✅ Like successful, waiting for socket update...');
-      }
+     if (data.success) {
+       }
     } catch (err) {
       console.error('Toggle like error:', err);
       toast.error('Lỗi thích bài viết');

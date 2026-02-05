@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Heart, X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -59,12 +60,12 @@ function ConfirmModal({ isOpen, onClose, onConfirm, loading }) {
 
 export default function YourCrush() {
   const navigate = useNavigate();
+  const { user, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [match, setMatch] = useState(null);
   const [removing, setRemoving] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const user = (() => { try { return JSON.parse(sessionStorage.getItem('user')||'{}'); } catch { return {}; } })();
   const userId = user?.id || user?._id;
 
   useEffect(() => {
@@ -73,7 +74,6 @@ export default function YourCrush() {
       setLoading(true);
       try {
         const headers = {};
-        const token = sessionStorage.getItem('accessToken');
         if (token) headers['Authorization'] = `Bearer ${token}`;
         const res = await fetch(`${API_URL}/api/v1/user/my-crush?userId=${userId}`, { headers, credentials: 'include' });
         if (!res.ok) {
@@ -97,7 +97,6 @@ export default function YourCrush() {
     setRemoving(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
-      const token = sessionStorage.getItem('accessToken');
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_URL}/api/v1/matches/${match._id}/remove-crush`, {
         method: 'POST', credentials: 'include', headers, body: JSON.stringify({ userId })

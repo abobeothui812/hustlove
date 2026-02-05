@@ -26,7 +26,6 @@ useEffect(() => {
   if (!newSocket) return;
 
   const handleOnlineUsersCount = (count) => {
-    console.log("👥 Online users:", count);
     setStats(prev => ({ ...prev, OnlineUsers: count }));
   };
 

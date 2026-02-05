@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -13,6 +14,8 @@ const ChatHeader = memo(function ChatHeader({
   onBlock, 
   actionLoading 
 }) {
+  const { user, token } = useAuth();
+  const userId = user?.id || user?._id;
   const [isCrush, setIsCrush] = useState(false);
   const [isMutual, setIsMutual] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -21,11 +24,11 @@ const ChatHeader = memo(function ChatHeader({
     // Determine crush state for this conversation if matchId exists
     (async () => {
       try {
-        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-        const userId = user?.id || user?._id;
         if (!userId || !conversation?.matchId) return;
 
-        const res = await axios.get(`${API_URL}/api/v1/user/my-crush?userId=${userId}`);
+        const res = await axios.get(`${API_URL}/api/v1/user/my-crush?userId=${userId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (res.data?.success && res.data.match) {
           const m = res.data.match;
           const isMine = String(m._id) === String(conversation.matchId || conversation.matchId?._id);
@@ -39,7 +42,7 @@ const ChatHeader = memo(function ChatHeader({
         // ignore
       }
     })();
-  }, [conversation?.matchId]);
+  }, [conversation?.matchId, userId, token]);
 
   const handleSetCrush = async () => {
     console.debug('handleSetCrush clicked', { conversation });
@@ -48,13 +51,13 @@ const ChatHeader = memo(function ChatHeader({
       alert('Lỗi: cuộc trò chuyện này chưa có matchId.');
       return;
     }
-    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-    const userId = user?.id || user?._id;
     if (!userId) return alert('Vui lòng đăng nhập');
 
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/v1/matches/${conversation.matchId}/set-crush`, { userId });
+      const res = await axios.post(`${API_URL}/api/v1/matches/${conversation.matchId}/set-crush`, { userId }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.data?.success) {
         setIsCrush(true);
         setIsMutual(Boolean(res.data.match?.isMutualCrush));
@@ -72,13 +75,13 @@ const ChatHeader = memo(function ChatHeader({
       return;
     }
     if (!confirm('Bạn có chắc chắn muốn hủy Crush bí mật này?')) return;
-    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-    const userId = user?.id || user?._id;
     if (!userId) return alert('Vui lòng đăng nhập');
 
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/v1/matches/${conversation.matchId}/remove-crush`, { userId });
+      const res = await axios.post(`${API_URL}/api/v1/matches/${conversation.matchId}/remove-crush`, { userId }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.data?.success) {
         setIsCrush(false);
         setIsMutual(Boolean(res.data.match?.isMutualCrush));

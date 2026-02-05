@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Heart,
   Sparkles,
@@ -321,33 +322,22 @@ export default function CompleteProfile() {
   const [locationError, setLocationError] = useState('');
   const isDev = import.meta.env.DEV;
   const fileInputRef = useRef(null);
+  const { user: authUser, token, updateUser } = useAuth();
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('user');
-    if (!stored) {
+    if (!authUser) {
       navigate('/login');
       return;
     }
 
-    let parsedUser;
-    try {
-      parsedUser = JSON.parse(stored);
-    } catch (error) {
-      console.error('Failed to parse user session', error);
-      navigate('/login');
-      return;
-    }
-
-    const sessionUser = parsedUser
-      ? {
-          ...parsedUser,
-          height: normalizeHeightValue(parsedUser.height) ?? parsedUser.height,
-          preferences: {
-            ...(parsedUser.preferences || {}),
-            ageRange: normalizeAgeRange(parsedUser.preferences?.ageRange),
-          },
-        }
-      : null;
+    const sessionUser = {
+        ...authUser,
+        height: normalizeHeightValue(authUser.height) ?? authUser.height,
+        preferences: {
+          ...(authUser.preferences || {}),
+          ageRange: normalizeAgeRange(authUser.preferences?.ageRange),
+        },
+      };
 
     if (sessionUser?.isProfileComplete) {
       setIsCheckingCompletion(false);
@@ -379,7 +369,7 @@ export default function CompleteProfile() {
           : null;
 
         if (serverUser?.isProfileComplete) {
-          sessionStorage.setItem('user', JSON.stringify({ ...sessionUser, ...serverUser }));
+          updateUser({ ...sessionUser, ...serverUser });
           setIsCheckingCompletion(false);
           navigate('/profile', { replace: true });
           return;
@@ -854,7 +844,6 @@ export default function CompleteProfile() {
           || '',
       };
 
-      const token = sessionStorage.getItem('accessToken');
       const response = await axios.put(`${API_URL}/api/users/${user.id || user._id}/profile`, payload, {
         headers: { 
           'Content-Type': 'application/json',
@@ -925,8 +914,7 @@ export default function CompleteProfile() {
         isProfileComplete: nextUser.isProfileComplete ?? true,
       };
 
-      sessionStorage.setItem('user', JSON.stringify(mergedUser));
-      window.dispatchEvent(new Event('userChanged'));
+      updateUser(mergedUser);
       setServerMessage('Cập nhật hồ sơ thành công.');
 
       navigate('/onboarding/photo-upload', { replace: true });

@@ -12,7 +12,6 @@ class MatchingService {
     try {
       await this.matcher.initialize();
       this.isReady = true;
-      console.log('✅ Matching Service is ready!');
     } catch (error) {
       console.error('❌ Failed to initialize Matching Service:', error);
       throw error;

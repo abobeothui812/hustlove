@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { GripVertical, Plus, X } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../contexts/AuthContext';
 
 const MAX_PHOTOS = 6;
 const MIN_REQUIRED = 1;
@@ -24,14 +25,7 @@ export default function PhotoManagement() {
   const navigate = useNavigate();
   const location = useLocation();
   const API_URL = import.meta.env.VITE_API_URL;
-  const storedUser = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem('user') || '{}');
-    } catch (error) {
-      console.error('Cannot parse user from session storage', error);
-      return {};
-    }
-  }, []);
+  const { user: storedUser, updateUser, token } = useAuth();
   const userId = storedUser?.id || storedUser?._id;
 
   const isEditMode = useMemo(
@@ -182,7 +176,6 @@ export default function PhotoManagement() {
     setStatusMessage('');
 
     try {
-      const token = sessionStorage.getItem('accessToken');
       const response = await axios.put(
         `${API_URL}/api/users/${userId}/profile`,
         {
@@ -197,14 +190,12 @@ export default function PhotoManagement() {
 
       const updatedUser = response.data?.user;
       if (updatedUser) {
-        const nextSessionUser = {
-          ...storedUser,
+        // Update auth context with new photo data
+        updateUser({
           ...updatedUser,
           photoGallery: payloadPhotos,
           avatar: payloadPhotos[0] || updatedUser.avatar || '',
-        };
-        sessionStorage.setItem('user', JSON.stringify(nextSessionUser));
-        window.dispatchEvent(new Event('userChanged'));
+        });
       }
 
       setStatusTone('success');

@@ -7,22 +7,16 @@ import { notificationService } from '../services/NotificationService.js';
 
 export const initNotificationSocket = (io) => {
   io.on('connection', (socket) => {
-    console.log(`✅ Notification socket connected: ${socket.id}`);
-
     // ==========================================
     // Auth User for Notifications
     // ==========================================
     socket.on('auth_notification', ({ userId }) => {
-      console.log(`📥 Received auth_notification event from socket ${socket.id} with userId:`, userId);
       if (!userId) {
-        console.log('❌ auth_notification received empty userId');
         return;
       }
 
       socket.data.userId = userId.toString();
       socket.join(`notifications_${userId}`);
-      console.log(`🔔 User ${userId} joined notification room notifications_${userId}`);
-      console.log(`📊 Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
     });
 
     // ==========================================
@@ -68,7 +62,6 @@ export const initNotificationSocket = (io) => {
     // Disconnect
     // ==========================================
     socket.on('disconnect', () => {
-      console.log(`👋 Notification socket disconnected: ${socket.id}`);
     });
   });
 };
@@ -84,7 +77,6 @@ export const emitNotification = (io, userId, notification) => {
     io.to(`notifications_${userId}`).emit('new_notification', {
       notification
     });
-    console.log(`📢 Notification sent to user ${userId}`);
   } catch (error) {
     console.error('❌ Error emitting notification:', error);
   }

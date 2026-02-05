@@ -60,10 +60,12 @@ const httpServer = createServer(app);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,  // lấy từ biến môi trường
+  "https://hustlove.vercel.app",
+  "https://hustlove-api.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:5000"
-];
+].filter(Boolean);
 
 const io = new Server(httpServer, {
   cors: {
@@ -78,29 +80,31 @@ app.set('io', io);
 
 
 // Middleware
-// ✅ Middleware CORS thông minh: cho phép localhost và devtunnels tự động
+// ✅ Middleware CORS: cho phép origins trong allowedOrigins + localhost + devtunnels
 app.use(cors({
   origin: function (origin, callback) {
-    // Cho phép nếu không có origin (Postman, server nội bộ)
+    // Cho phép nếu không có origin (Postman, server nội bộ, mobile apps)
     if (!origin) return callback(null, true);
 
-    // Cho phép localhost hoặc domain từ Azure DevTunnels
-    if (origin.includes("localhost") || origin.includes("devtunnels.ms")) {
+    // Cho phép nếu origin nằm trong allowedOrigins
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // Cho phép frontend chính thức (nếu có)
-    if (origin === process.env.FRONTEND_URL) {
+    // Cho phép localhost hoặc domain từ Azure DevTunnels hoặc Vercel preview
+    if (origin.includes("localhost") || 
+        origin.includes("127.0.0.1") ||
+        origin.includes("devtunnels.ms") ||
+        origin.includes(".vercel.app")) {
       return callback(null, true);
     }
 
     // Còn lại thì chặn
-    console.warn("❌ CORS blocked request from:", origin);
     return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
 }));
 
 // Parse cookies
@@ -155,7 +159,6 @@ connectDB();
 (async () => {
   try {
     await matchingService.initialize();
-    console.log('✅ Matching Service initialized');
   } catch (error) {
     console.error('❌ Failed to initialize Matching Service:', error);
   }
@@ -179,5 +182,4 @@ app.get("/api/health", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server đang chạy tại http://0.0.0.0:${PORT}`);
 });

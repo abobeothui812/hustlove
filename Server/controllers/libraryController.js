@@ -48,8 +48,6 @@ export const createRoom = async (req, res) => {
           return u1 === createdBy.toString() ? u2 : u1;
         }).filter(Boolean);
         
-        console.log(`📢 Sending room creation notification to ${matchedUserIds.length} matched users`);
-        
         // Gửi thông báo cho từng user đã match
         for (const recipientId of matchedUserIds) {
           try {
@@ -154,7 +152,6 @@ export const createInviteForRoom = async (req, res) => {
     // Create a persistent notification for the receiver and emit it in real-time
     try {
       const sender = await User.findById(senderId).select('name');
-      console.log(`📬 Creating library_invite notification: ${sender?.name} → User ${receiverId} for room ${room.name}`);
       
       const notif = await notificationService.createNotification({
         recipientId: receiverId,
@@ -164,25 +161,20 @@ export const createInviteForRoom = async (req, res) => {
         isRead: false,
         roomId: room._id
       });
-      console.log(`✅ Notification created:`, notif._id);
 
       // populate notification before emitting so frontend has sender and room info
       const populatedNotif = await Notification.findById(notif._id)
         .populate('senderId', 'name avatar')
         .populate('roomId', 'name')
         .lean();
-      console.log(`📤 Populated notification:`, populatedNotif);
 
       // emit via both notification socket namespace and legacy post socket room (if available)
       if (req.io) {
-        console.log(`🔌 Emitting to receiverId: ${receiverId}`);
         try { 
           emitNotification(req.io, receiverId, populatedNotif);
-          console.log(`✅ emitNotification called`);
         } catch (e) { console.warn('emitNotification failed', e); }
         try { 
           req.emitNotification?.(receiverId, populatedNotif);
-          console.log(`✅ req.emitNotification called`);
         } catch (e) { console.warn('req.emitNotification failed', e); }
       } else {
         console.warn('⚠️ req.io is undefined, cannot emit notification');

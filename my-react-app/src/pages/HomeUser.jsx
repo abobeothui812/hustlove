@@ -1,23 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Users, Sparkles, TrendingUp, Star, Crown, Zap, Calendar, MapPin, Briefcase, Gift } from 'lucide-react';
 import FallingStarCanvas from '../components/FallingStarCanvas';
+import { useAuth } from '../contexts/AuthContext';
 
 // Animated Gradient Blob
 
 
 export default function Home() {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [stats] = useState({
     totalUsers: 12458,
     activeNow: 3247,
     matchesToday: 856,
     messagesExchanged: 45123
   });
-
-  useEffect(() => {
-    const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
-    setUser(userData);
-  }, []);
 
   const features = [
     {

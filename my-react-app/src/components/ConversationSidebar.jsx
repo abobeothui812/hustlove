@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useMemo } from 'react';
 import ConversationListComponent from './ConversationListComponent';
 import { enhanceConversation, sortConversations } from '../utils/messageHelpers';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ConversationSidebar({
   selectedConversationId,
@@ -13,7 +14,7 @@ export default function ConversationSidebar({
 }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const { user, token } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
 
   const fetchConversations = useCallback(async () => {

@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { Check } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function OpeningMoveOnboarding({ onComplete }) {
-  const storedUser = (() => {
-    try { return JSON.parse(sessionStorage.getItem('user') || '{}'); } catch { return {}; }
-  })();
+  const { user: storedUser, token } = useAuth();
   const userId = storedUser?.id || storedUser?._id;
 
   const [moves, setMoves] = useState([]);
@@ -20,7 +19,6 @@ export default function OpeningMoveOnboarding({ onComplete }) {
     const fetchMoves = async () => {
       try {
         const headers = {};
-        const token = sessionStorage.getItem('accessToken');
         if (token) headers['Authorization'] = `Bearer ${token}`;
         const res = await fetch(`${API_URL}/api/opening-moves?active=1`, { credentials: 'include', headers });
         const payload = await res.json();
@@ -45,7 +43,6 @@ export default function OpeningMoveOnboarding({ onComplete }) {
     setSaving(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
-      const token = sessionStorage.getItem('accessToken');
       if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_URL}/api/users/${userId}/opening-move`, {
         method: 'PUT',

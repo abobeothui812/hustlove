@@ -3,7 +3,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { X, Plus, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { UserContext } from '../contexts';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LibraryInvite() {
   const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -63,23 +63,12 @@ export default function LibraryInvite() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [detailRoom, setDetailRoom] = useState(null);
 
-  const { user: ctxUser } = useContext(UserContext) || {};
+  const { user: ctxUser, token: authToken } = useAuth();
 
-  // Helper to build Authorization header and normalize token
+  // Helper to build Authorization header
   function getAuthHeaders() {
-    const tokenRaw = sessionStorage.getItem('accessToken');
-    if (!tokenRaw) return {};
-    // strip accidental quotes
-    let token = tokenRaw;
-    if (typeof token === 'string') {
-      token = token.trim();
-      if ((token.startsWith("\"") && token.endsWith("\"")) || (token.startsWith("'") && token.endsWith("'"))) {
-        token = token.slice(1, -1);
-      }
-    }
-    // log for debugging (will show in browser console)
-    try { console.debug('Using accessToken for API calls:', token.slice(0, 8) + '...'); } catch (e) {}
-    return { Authorization: `Bearer ${token}` };
+    if (!authToken) return {};
+    return { Authorization: `Bearer ${authToken}` };
   }
 
   // Load rooms and invites; include `joined` flag for current user

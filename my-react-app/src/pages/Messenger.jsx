@@ -16,6 +16,7 @@ import { Heart, Smile, ImageIcon, Send, MoreHorizontal } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import { SocketContext } from '../contexts';
+import { useAuth } from '../contexts/AuthContext';
 import { enhanceMessage, sortConversations, SCROLL_THRESHOLD, formatTimestamp, enhanceConversation } from '../utils/messageHelpers';
 import ConversationListComponent from '../components/ConversationListComponent';
 import ConfirmModal from '../components/ConfirmModal';
@@ -24,12 +25,8 @@ import InputModal from '../components/InputModal';
 // Vite environment variable for API base URL
 const API_URL = import.meta.env.VITE_API_URL;
 
-// Helper to read auth token from sessionStorage or axios defaults
-function getAuthToken() {
-  try {
-    const s = sessionStorage.getItem('accessToken');
-    if (s) return typeof s === 'string' && s.startsWith('Bearer ') ? s.slice(7) : s;
-  } catch (e) {}
+// Helper to read auth token from axios defaults (fallback)
+function getAuthTokenFromAxios() {
   try {
     const header = axios.defaults.headers.common['Authorization'];
     if (header && typeof header === 'string') return header.startsWith('Bearer ') ? header.slice(7) : header;
@@ -145,7 +142,7 @@ const MessageList = memo(forwardRef(MessageListBase));
 // ============================================
 // MESSAGE INPUT (Memoized)
 // ============================================
-const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyping, conversationId }) {
+const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyping, conversationId, userId, authToken }) {
   const fileRef = useRef(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -191,17 +188,13 @@ const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyp
       if (!file || !conversationId || !API_URL) return;
 
       const form = new FormData();
-      const stored = sessionStorage.getItem('user');
-      const userObj = stored ? JSON.parse(stored) : null;
-      const userId = userObj?.id;
       form.append('image', file);
       if (userId) form.append('userId', userId);
 
       try {
-        const token = getAuthToken();
-        if (!token) console.warn('No accessToken found when uploading image for', conversationId);
+        if (!authToken) console.warn('No accessToken found when uploading image for', conversationId);
         const res = await axios.post(`${API_URL}/api/match/${conversationId}/upload`, form, {
-          headers: { 'Content-Type': 'multipart/form-data', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          headers: { 'Content-Type': 'multipart/form-data', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         });
         const url = res.data?.url || res.data?.secure_url || null;
         if (url) {
@@ -216,7 +209,7 @@ const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyp
         event.target.value = '';
       }
     },
-    [conversationId, onSend]
+    [conversationId, onSend, userId, authToken]
   );
 
   return (
@@ -790,6 +783,8 @@ function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConver
             }}
             onTyping={handleTyping}
             conversationId={selectedConversation?._id}
+            userId={user?.id}
+            authToken={getAuthToken()}
           />
 
           {/* Report Modal */}
@@ -860,10 +855,13 @@ function MessengerPage() {
   const location = useLocation();
   const params = useParams();
   const { socket } = useContext(SocketContext) ?? {};
+  const { user, token: authToken } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
 
+  // Helper to get auth token
+  const getAuthToken = useCallback(() => authToken || getAuthTokenFromAxios(), [authToken]);
+
   // ========== MAIN PAGE STATE ==========
-  const [user, setUser] = useState(null);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -871,16 +869,6 @@ function MessengerPage() {
   const [myCrushIsMutual, setMyCrushIsMutual] = useState(false);
 
   const targetHandledRef = useRef(false);
-
-  // ========== AUTH CHECK ==========
-  useEffect(() => {
-    const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
-    if (!userData.id) {
-      navigate('/login');
-      return;
-    }
-    setUser(userData);
-  }, [navigate]);
 
   // ========== FETCH CONVERSATIONS ==========
   useEffect(() => {

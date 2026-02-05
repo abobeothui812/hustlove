@@ -14,18 +14,12 @@ import {
 import OtherProfileCard from '../components/OtherProfileCard';
 import ConfirmModal from '../components/ConfirmModal';
 import InputModal from '../components/InputModal';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function Home() {
-  const storedUser = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem('user') || '{}');
-    } catch (error) {
-      console.error('Cannot parse user from session storage', error);
-      return {};
-    }
-  }, []);
+  const { user: storedUser } = useAuth();
 
   const navigate = useNavigate();
 

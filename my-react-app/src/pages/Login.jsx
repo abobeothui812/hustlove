@@ -1,121 +1,60 @@
 
-import { useState, useContext } from "react";
+import { useState } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Sparkles } from "lucide-react";
-import { UserContext } from "../contexts";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
-  const ctx = useContext(UserContext);
-  const setUser = ctx?.setUser;
+
+  // Get redirect destination from location state (set by ProtectedRoute)
+  const from = location.state?.from?.pathname || "/feed";
 
   const handleSubmit = async (e) => {
-    console.log("🔥 handleSubmit BẮT ĐẦU");
     e.preventDefault();
-    console.log("📤 Dữ liệu gửi đi:", form);
+    setMessage("");
+    setIsLoading(true);
 
     try {
       const res = await axios.post(`${API_URL}/api/auth/login`, form, {
         headers: { "Content-Type": "application/json" },
-        withCredentials: true, // allow refresh token cookie
+        withCredentials: true,
       });
 
-      console.log("✅ Phản hồi từ server:", res.data);
-      console.log("👤 User data:", res.data.user);
+      const { user, accessToken } = res.data;
 
-      const user = res.data.user;
-
-      // ✅ Kiểm tra user có đủ thông tin không
       if (!user || (!user.id && !user._id)) {
-        console.error("❌ User data thiếu thông tin!");
         setMessage("Lỗi: Server không trả về đầy đủ thông tin user");
         return;
       }
 
-      // ✅ Lưu VÀO sessionStorage (đầy đủ dữ liệu)
-      const userForChat = {
-        _id: user.id || user._id,
-        id: user.id || user._id,
-        name: user.name,
-        email: user.email,
-        gender: user.gender,
-        dob: user.dob,
-        age: user.age,
-        avatar: user.avatar || "",
-        career: user.career || user.job || "",
-        job: user.job || user.career || "",
-        hometown: user.hometown || user.location || "",
-        location: user.location || "",
-        geoLocation: user.geoLocation || null,
-        hobbies: user.hobbies || [],
-        bio: user.bio || "",
-        zodiac: user.zodiac || "Unknown",
-        preferences: user.preferences || null,
-        lookingFor: user.preferences?.lookingFor || user.lookingFor || "All",
-        height: (() => {
-          const numeric = Number(user.height);
-          if (!Number.isFinite(numeric)) {
-            return null;
-          }
-          const truncated = Math.trunc(numeric);
-          return truncated >= 120 && truncated <= 220 ? truncated : null;
-        })(),
-        isProfileComplete: user.isProfileComplete ?? user.profileCompleted ?? false,
-      };
+      // Use AuthContext login - handles storage and normalization
+      const loggedInUser = login(user, accessToken);
 
-
-      console.log("💾 Data sẽ lưu vào sessionStorage:", userForChat);
-
-      sessionStorage.setItem("user", JSON.stringify(userForChat));
-
-      // save access token for authenticated requests
-      if (res.data?.accessToken) {
-        sessionStorage.setItem('accessToken', res.data.accessToken);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.accessToken}`;
-      }
-
-      setUser(userForChat);
-
-      // ✅ Kiểm tra đã lưu thành công chưa
-      const saved = sessionStorage.getItem("user");
-      console.log("🔍 Kiểm tra lại sessionStorage:", saved);
-
-      if (saved) {
-        console.log("✅ sessionStorage đã lưu thành công!");
+      // Redirect based on profile completion
+      if (!loggedInUser.isProfileComplete) {
+        navigate("/complete-profile", { replace: true });
       } else {
-        console.error("❌ sessionStorage KHÔNG LƯU ĐƯỢC!");
-        alert("Không thể lưu thông tin đăng nhập! Vui lòng kiểm tra cài đặt trình duyệt.");
-        return;
-      }
-
-      window.dispatchEvent(new Event("userChanged"));
-
-      console.log("check userForChat.isProfileComplete", userForChat.isProfileComplete);
-      // 🔥 Kiểm tra profile đã hoàn thiện chưa
-      if (!userForChat.isProfileComplete) {
-        console.log("➡️ Chuyển đến /complete-profile");
-        navigate("/complete-profile");
-      } else {
-        console.log("➡️ Chuyển đến /feed");
-        navigate("/feed");
+        navigate(from, { replace: true });
       }
     } catch (err) {
-      console.error("❌ Lỗi đăng nhập:", err);
-      console.error("❌ Response:", err.response?.data);
+      console.error("Lỗi đăng nhập:", err);
       
-      // Xử lý lỗi từ express-validator (trả về mảng errors)
       if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
-        // Lấy message từ lỗi đầu tiên hoặc ghép tất cả
         const errorMessages = err.response.data.errors.map(e => e.msg).join(", ");
         setMessage(errorMessages);
       } else {
-        // Lỗi thông thường (message đơn)
         setMessage(err.response?.data?.message || "Lỗi kết nối tới server!");
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -170,9 +109,10 @@ export default function Login() {
 
             <button
               type="submit"
-              className="w-full rounded-full bg-gradient-to-r from-rose-400 via-orange-200 to-pink-300 px-6 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-rose-200/70 transition hover:scale-[1.01] hover:shadow-rose-200/100"
+              disabled={isLoading}
+              className="w-full rounded-full bg-gradient-to-r from-rose-400 via-orange-200 to-pink-300 px-6 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-rose-200/70 transition hover:scale-[1.01] hover:shadow-rose-200/100 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Đăng nhập
+              {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
 
             {/* Google sign-in removed — only HUST email allowed */}

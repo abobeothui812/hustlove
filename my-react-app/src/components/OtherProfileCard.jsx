@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
 import InputModal from './InputModal';
+import { useAuth } from '../contexts/AuthContext';
 
 function InfoTag({ children }) {
   return (
@@ -35,6 +36,7 @@ function SimpleTag({ children }) {
 }
 
 export default function OtherProfileCard({ profile, onBlocked }) {
+  const { token } = useAuth();
   const [photoIndex, setPhotoIndex] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -355,7 +357,6 @@ export default function OtherProfileCard({ profile, onBlocked }) {
           try {
             setActionLoading(true);
             const API_URL = import.meta.env.VITE_API_URL;
-            const token = sessionStorage.getItem('accessToken');
             const res = await fetch(`${API_URL}/api/users/report/${profile.id}`, {
               method: 'POST',
               headers: {
@@ -391,7 +392,6 @@ export default function OtherProfileCard({ profile, onBlocked }) {
           try {
             setActionLoading(true);
             const API_URL = import.meta.env.VITE_API_URL;
-            const token = sessionStorage.getItem('accessToken');
             const res = await fetch(`${API_URL}/api/users/block/${profile.id}`, {
               method: 'POST',
               headers: {
