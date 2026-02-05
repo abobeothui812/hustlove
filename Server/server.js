@@ -180,6 +180,13 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// For Vercel serverless deployment - export the app
+export default app;
+
+// Only listen when running locally (not on Vercel)
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, "0.0.0.0", () => {
-});
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
