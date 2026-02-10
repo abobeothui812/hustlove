@@ -10,7 +10,7 @@ const postSchema = new mongoose.Schema({
   // Content
   content: {
     type: String,
-    required: true,
+    required: false,
     maxlength: 5000
   },
   
