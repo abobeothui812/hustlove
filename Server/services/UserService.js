@@ -309,10 +309,12 @@ export const updateUserProfile = async (userId, payload) => {
     }
 
     const {
+        name,
         gender,
         dob,
         career,
         location,
+        hometown,
         bio,
         hobbies,
         zodiac,
@@ -325,6 +327,13 @@ export const updateUserProfile = async (userId, payload) => {
         avatar,
         height,
     } = payload;
+
+    if (name !== undefined) {
+        const trimmedName = typeof name === 'string' ? name.trim() : '';
+        if (trimmedName.length > 0) {
+            user.name = trimmedName;
+        }
+    }
 
     if (gender) {
         const normalizedGender = normalizeGender(gender);
@@ -378,6 +387,17 @@ export const updateUserProfile = async (userId, payload) => {
         } else {
             user.hometown = 'Not updated';
             user.location = 'Not updated';
+        }
+    }
+
+    if (hometown !== undefined && location === undefined) {
+        if (typeof hometown === 'string') {
+            const trimmedHometown = hometown.trim();
+            if (trimmedHometown.length > 0) {
+                user.hometown = trimmedHometown;
+                user.location = trimmedHometown;
+                trimmedLocation = trimmedHometown;
+            }
         }
     }
 

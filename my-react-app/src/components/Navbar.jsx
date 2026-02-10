@@ -21,6 +21,19 @@ export default function Navbar({ socket, unreadCount = 0 }) {
     { label: "Community", path: "/community" },
   ];
 
+  // Check if we're on landing page
+  const isLandingPage = location.pathname === "/";
+
+  // Check if we're on onboarding/auth pages where nav items should be hidden
+  const hideNavItems = isLandingPage || [
+    "/login",
+    "/register",
+    "/complete-profile",
+    "/profile/manage-photos",
+    "/onboarding/photo-upload",
+    "/onboarding/opening-move",
+  ].includes(location.pathname);
+
   // Close dropdowns on route change
   useEffect(() => {
     setShowDropdown(false);
@@ -48,25 +61,27 @@ export default function Navbar({ socket, unreadCount = 0 }) {
         </Link>
 
         <div className="hidden items-center justify-center md:flex">
-          <nav className="flex items-center justify-center gap-10 text-sm font-semibold text-slate-800">
-            {navItems.map(({ label, path }) => {
-              const isActive = location.pathname.startsWith(path);
-              return (
-                <Link
-                  key={label}
-                  to={path}
-                  className={`relative transition-colors duration-150 hover:text-teal-500 ${
-                    isActive ? "text-teal-500" : ""
-                  }`}
-                >
-                  {label}
-                  {isActive && (
-                    <span className="absolute -bottom-2 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-teal-400" />
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
+          {!hideNavItems && (
+            <nav className="flex items-center justify-center gap-10 text-sm font-semibold text-slate-800">
+              {navItems.map(({ label, path }) => {
+                const isActive = location.pathname.startsWith(path);
+                return (
+                  <Link
+                    key={label}
+                    to={path}
+                    className={`relative transition-colors duration-150 hover:text-teal-500 ${
+                      isActive ? "text-teal-500" : ""
+                    }`}
+                  >
+                    {label}
+                    {isActive && (
+                      <span className="absolute -bottom-2 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-teal-400" />
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
         </div>
 
         <div className="ml-auto hidden flex-shrink-0 items-center gap-4 justify-self-end md:flex">
@@ -166,22 +181,24 @@ export default function Navbar({ socket, unreadCount = 0 }) {
       {mobileOpen && (
         <div className="md:hidden">
           <div className="space-y-4 border-t border-rose-100/70 bg-white/95 px-4 py-6 text-sm font-semibold text-slate-700 shadow-lg">
-            <div className="flex flex-col gap-2">
-              {navItems.map(({ label, path }) => {
-                const isActive = location.pathname.startsWith(path);
-                return (
-                  <Link
-                    key={label}
-                    to={path}
-                    className={`rounded-xl px-3 py-2 transition hover:bg-rose-50 ${
-                      isActive ? "text-teal-500" : ""
-                    }`}
-                  >
-                    {label}
-                  </Link>
-                );
-              })}
-            </div>
+            {!hideNavItems && (
+              <div className="flex flex-col gap-2">
+                {navItems.map(({ label, path }) => {
+                  const isActive = location.pathname.startsWith(path);
+                  return (
+                    <Link
+                      key={label}
+                      to={path}
+                      className={`rounded-xl px-3 py-2 transition hover:bg-rose-50 ${
+                        isActive ? "text-teal-500" : ""
+                      }`}
+                    >
+                      {label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
 
             {user ? (
               <div className="space-y-3 rounded-2xl bg-rose-50/70 p-4">

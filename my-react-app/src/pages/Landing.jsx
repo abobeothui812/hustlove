@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   ShieldCheck,
   Fingerprint,
@@ -59,6 +61,15 @@ const featureGroups = [
 ];
 
 export default function Landing() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      navigate('/feed');
+    }
+  }, [user, navigate]);
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-rose-50 via-pink-100 to-purple-50 text-slate-900">
       <div className="pointer-events-none absolute inset-0 -z-10">

@@ -6,6 +6,22 @@ const API_URL = import.meta.env.VITE_API_URL;
 axios.defaults.baseURL = API_URL;
 axios.defaults.withCredentials = true;
 
+// Request interceptor — always attach the latest token from localStorage
+axios.interceptors.request.use(
+  (config) => {
+    // Skip auth header for token refresh to avoid sending an expired token
+    if (config.url && config.url.includes('/auth/refresh')) {
+      return config;
+    }
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -58,9 +74,12 @@ axios.interceptors.response.use(
 
         const { accessToken } = response.data;
 
-        // Save new access token
-        sessionStorage.setItem('accessToken', accessToken);
+        // Save new access token (use localStorage to match AuthContext)
+        localStorage.setItem('accessToken', accessToken);
         axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+        // Notify AuthContext of the refreshed token
+        window.dispatchEvent(new CustomEvent('tokenRefreshed', { detail: { accessToken } }));
 
         // Process queued requests
         processQueue(null, accessToken);
@@ -72,8 +91,8 @@ axios.interceptors.response.use(
         // Refresh failed - clear session and redirect to login
         processQueue(refreshError, null);
         
-        sessionStorage.removeItem('accessToken');
-        sessionStorage.removeItem('user');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('user');
         delete axios.defaults.headers.common['Authorization'];
         
         // Dispatch event to trigger logout UI

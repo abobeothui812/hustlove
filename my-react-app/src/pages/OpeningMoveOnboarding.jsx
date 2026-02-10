@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import axios from '../utils/axiosConfig';
 
 export default function OpeningMoveOnboarding({ onComplete }) {
-  const { user: storedUser, token } = useAuth();
+  const { user: storedUser } = useAuth();
   const userId = storedUser?.id || storedUser?._id;
 
   const [moves, setMoves] = useState([]);
@@ -18,15 +17,12 @@ export default function OpeningMoveOnboarding({ onComplete }) {
     let mounted = true;
     const fetchMoves = async () => {
       try {
-        const headers = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${API_URL}/api/opening-moves?active=1`, { credentials: 'include', headers });
-        const payload = await res.json();
+        const res = await axios.get('/api/opening-moves', { params: { active: 1 } });
         if (!mounted) return;
-        if (payload?.data) setMoves(payload.data);
+        if (res.data?.data) setMoves(res.data.data);
       } catch (e) {
         console.error('Failed to load opening moves', e);
-        toast.error('Không thể tải câu hỏi mở.');
+        toast.error(e.response?.data?.message || e.message || 'Không thể tải câu hỏi mở.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -36,27 +32,20 @@ export default function OpeningMoveOnboarding({ onComplete }) {
   }, []);
 
   const handleSubmit = async () => {
-    if (!API_URL || !userId) {
+    if (!userId) {
       toast.error('Thiếu cấu hình hoặc chưa đăng nhập.');
       return;
     }
     setSaving(true);
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_URL}/api/users/${userId}/opening-move`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify({ selectedOpeningMove: selected || null }),
+      const res = await axios.put(`/api/users/${userId}/opening-move`, {
+        selectedOpeningMove: selected || null,
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload?.message || 'Lỗi server');
       toast.success('Lưu lựa chọn thành công');
-      if (typeof onComplete === 'function') onComplete(payload.user || null);
+      if (typeof onComplete === 'function') onComplete(res.data?.user || null);
     } catch (e) {
       console.error(e);
-      toast.error(e.message || 'Không thể lưu lựa chọn');
+      toast.error(e.response?.data?.message || e.message || 'Không thể lưu lựa chọn');
     } finally {
       setSaving(false);
     }

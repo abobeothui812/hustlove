@@ -116,41 +116,8 @@ function AppContent() {
     };
     socket.on("new_notification", handleNewNotification);
 
-    const handleNewMessageForNotif = (payload) => {
-      try {
-        const message = payload?.message || payload;
-        if (!message) return;
-
-        // Ignore messages sent by ourselves
-        if (user?.id && (String(message.senderId) === String(user.id))) {
-          return;
-        }
-
-        const senderName = message.senderName || message.sender?.name || message.fromName || message.from?.name || 'Ai đó';
-        const preview = (message.content || '').slice(0, 120);
-
-        const notif = {
-          _id: `m-${Date.now()}`,
-          type: 'message',
-          content: `${senderName}: ${preview}`,
-          createdAt: new Date().toISOString(),
-          isRead: false,
-          meta: {
-            conversationId: payload.conversationId || message.conversationId || message.chatRoomId
-          }
-        };
-
-        setNotifications(prev => [notif, ...prev]);
-        setUnreadCount(prev => prev + 1);
-      } catch (e) {
-        console.error('Error handling new_message for notif', e);
-      }
-    };
-    socket.on('new_message', handleNewMessageForNotif);
-
     return () => {
       socket.off("new_notification", handleNewNotification);
-      socket.off('new_message', handleNewMessageForNotif);
       socket.off('mutual_match', handleMutualNavigate);
     };
   }, [socket, user?.id, navigate]);

@@ -107,7 +107,7 @@ export default function YourCrush() {
       toast.success('Đã hủy crush bí mật');
     } catch (err) {
       console.error(err);
-      toast.error('Hủy crush thất bại');
+      toast.error(err.message || 'Hủy crush thất bại');
     } finally { setRemoving(false); }
   };
 

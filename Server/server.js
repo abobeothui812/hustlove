@@ -180,6 +180,46 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ========== GLOBAL ERROR HANDLER ==========
+// Phải đặt sau tất cả các routes
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  // Log lỗi để debug
+  console.error('Global Error Handler:', err.message);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(err.stack);
+  }
+
+  // Xác định status code
+  const statusCode = err.statusCode || err.status || 500;
+
+  // Xác định message
+  let message = err.message || 'Đã xảy ra lỗi server.';
+
+  // Xử lý các loại lỗi cụ thể
+  if (err.name === 'ValidationError') {
+    // Mongoose validation error
+    message = Object.values(err.errors).map(e => e.message).join(', ');
+  } else if (err.name === 'CastError') {
+    // Mongoose cast error (invalid ObjectId, etc.)
+    message = 'Dữ liệu không hợp lệ.';
+  } else if (err.code === 11000) {
+    // MongoDB duplicate key error
+    message = 'Dữ liệu đã tồn tại.';
+  } else if (err.name === 'JsonWebTokenError') {
+    message = 'Token không hợp lệ.';
+  } else if (err.name === 'TokenExpiredError') {
+    message = 'Token đã hết hạn.';
+  }
+
+  // Trả về JSON response
+  res.status(statusCode).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
+
 // For Vercel serverless deployment - export the app
 export default app;
 

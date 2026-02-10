@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useContext, useMemo, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { X, Plus, Info } from 'lucide-react';
+import { X, Plus, Info, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import axios from '../utils/axiosConfig';
 
 export default function LibraryInvite() {
-  const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
   // Helper: robustly extract avatar URL from occupant object
   const extractAvatar = (o) => {
     if (!o || typeof o === 'string') return null;
@@ -53,7 +53,7 @@ export default function LibraryInvite() {
   const [createEndDate, setCreateEndDate] = useState('');
   const [createEndTime, setCreateEndTime] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [toastInfo, setToastInfo] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargetRoom, setDeleteTargetRoom] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -63,22 +63,15 @@ export default function LibraryInvite() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [detailRoom, setDetailRoom] = useState(null);
 
-  const { user: ctxUser, token: authToken } = useAuth();
+  const { user: ctxUser } = useAuth();
 
   // Helper to build Authorization header
-  function getAuthHeaders() {
-    if (!authToken) return {};
-    return { Authorization: `Bearer ${authToken}` };
-  }
-
   // Load rooms and invites; include `joined` flag for current user
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE || ''}/api/library/rooms`);
-        if (res.ok) {
-          const json = await res.json();
-          const fetched = json.rooms || [];
+        const res = await axios.get('/api/library/rooms');
+        const fetched = res.data.rooms || [];
           const invitesAcc = [];
           const list = fetched.map((r) => {
             const occupantIds = (r.occupants || []).map((o) => (o && (o._id || o.toString())) || String(o));
@@ -101,9 +94,6 @@ export default function LibraryInvite() {
           // Update state once to avoid many re-renders
           setRooms(list);
           if (invitesAcc.length) setInvites(invitesAcc);
-        } else {
-          setRooms([]);
-        }
       } catch (err) {
         console.warn('Failed to fetch rooms:', err);
         setRooms([]);
@@ -132,16 +122,36 @@ export default function LibraryInvite() {
   const joinRoom = useCallback(async (roomId) => {
     if (!ctxUser) return toast.error('Vui lòng đăng nhập để vào phòng.');
     try {
-      const res = await fetch(`${API_BASE || ''}/api/library/rooms/${roomId}/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ userId: ctxUser.id || ctxUser._id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = data?.message || data?.error || 'Không thể vào phòng.';
-        return toast.error(msg);
+      // Auto-accept any pending invite for this room
+      const pendingInvite = invites.find(
+        (inv) => String(inv.roomId) === String(roomId) && inv.status === 'pending'
+      );
+      if (pendingInvite) {
+        const inviteId = pendingInvite._id || pendingInvite.id;
+        try {
+          const acceptRes = await axios.post(`/api/library/rooms/${roomId}/invites/${inviteId}/accept`, { userId: ctxUser.id || ctxUser._id });
+          setInvites((prev) => prev.filter((inv) => !(String(inv.roomId) === String(roomId) && String(inv._id || inv.id) === String(inviteId))));
+
+          // Accept already added user to occupants — refresh rooms list and return
+          const listRes = await axios.get('/api/library/rooms');
+          const list = (listRes.data.rooms || []).map((r) => {
+                const occupantIds = (r.occupants || []).map((o) => (o && (o._id || o.toString())) || String(o));
+                const occupantNames = (r.occupants || []).map((o) => (o && o.name) || (typeof o === 'string' ? o : ''));
+                const occupantAvatars = (r.occupants || []).map((o) => extractAvatar(o));
+                const id = r._id || r.id || String(r._id || Date.now());
+                const joined = ctxUser ? occupantIds.includes(String(ctxUser.id || ctxUser._id)) : false;
+                const createdBy = r.createdBy ? (r.createdBy._id || r.createdBy).toString() : null;
+                return { ...r, id, occupants: occupantIds, occupantNames, occupantAvatars, joined, createdBy, startTime: r.startTime, endTime: r.endTime };
+              });
+              setRooms(list);
+            return;
+        } catch (e) {
+          // Ignore accept error, still try to join
+        }
       }
+
+      const res = await axios.post(`/api/library/rooms/${roomId}/join`, { userId: ctxUser.id || ctxUser._id });
+      const data = res.data;
 
       // server returns updated room; normalize and update state
       const r = data.room;
@@ -155,33 +165,47 @@ export default function LibraryInvite() {
       setRooms((prev) => prev.map((it) => (String(it.id) === String(id) ? normalized : it)));
     } catch (err) {
       console.error('Join room failed:', err);
-      toast.error('Không thể vào phòng. Vui lòng thử lại.');
+      toast.error(err.response?.data?.message || 'Không thể vào phòng. Vui lòng thử lại.');
     }
-  }, [ctxUser, API_BASE]);
+  }, [ctxUser, invites]);
+
+  const leaveRoom = useCallback(async (roomId) => {
+    if (!ctxUser) return toast.error('Vui lòng đăng nhập.');
+    try {
+      await axios.post(`/api/library/rooms/${roomId}/leave`, { userId: ctxUser.id || ctxUser._id });
+      // Update local state: set joined = false, remove user from occupants
+      setRooms((prev) => prev.map((r) => {
+        if (String(r.id) !== String(roomId)) return r;
+        const uid = String(ctxUser.id || ctxUser._id);
+        return {
+          ...r,
+          occupants: r.occupants.filter((o) => String(o) !== uid),
+          occupantNames: r.occupantNames.filter((_, i) => String(r.occupants[i]) !== uid),
+          occupantAvatars: r.occupantAvatars.filter((_, i) => String(r.occupants[i]) !== uid),
+          joined: false,
+        };
+      }));
+      toast.success('Đã rời phòng.');
+    } catch (err) {
+      console.error('Leave room failed:', err);
+      toast.error(err.response?.data?.message || 'Rời phòng thất bại. Vui lòng thử lại.');
+    }
+  }, [ctxUser]);
 
   const deleteRoom = useCallback(async (roomId) => {
     if (!ctxUser) return toast.error('Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`${API_BASE || ''}/api/library/rooms/${roomId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ userId: ctxUser.id || ctxUser._id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setToast({ msg: data.message || 'Xóa phòng thất bại', type: 'error' });
-        return false;
-      }
+      const res = await axios.delete(`/api/library/rooms/${roomId}`, { data: { userId: ctxUser.id || ctxUser._id } });
       // remove from list
       setRooms((prev) => prev.filter((r) => String(r.id) !== String(roomId)));
-      setToast({ msg: 'Xóa phòng thành công', type: 'success' });
+      setToastInfo({ msg: 'Xóa phòng thành công', type: 'success' });
       return true;
     } catch (err) {
       console.error('Delete room failed:', err);
-      setToast({ msg: 'Xóa phòng thất bại. Vui lòng thử lại.', type: 'error' });
+      setToastInfo({ msg: 'Xóa phòng thất bại. Vui lòng thử lại.', type: 'error' });
       return false;
     }
-  }, [ctxUser, API_BASE]);
+  }, [ctxUser]);
 
   function openDeleteConfirm(roomId) {
     setDeleteTargetRoom(roomId);
@@ -208,13 +232,8 @@ export default function LibraryInvite() {
     setLoadingMatches(true);
     (async () => {
       try {
-        const res = await fetch(`${API_BASE || ''}/api/match/matched-users/${ctxUser.id || ctxUser._id}`, { headers: { ...getAuthHeaders() } });
-        if (res.ok) {
-          const data = await res.json();
-          setMatchedUsers(data.matchedUsers || []);
-        } else {
-          setMatchedUsers([]);
-        }
+        const res = await axios.get(`/api/match/matched-users/${ctxUser.id || ctxUser._id}`);
+        setMatchedUsers(res.data.matchedUsers || []);
       } catch (err) {
         console.error('Failed to fetch matched users:', err);
         setMatchedUsers([]);
@@ -291,19 +310,10 @@ export default function LibraryInvite() {
         // debug: log payload and token prefix
         try { console.debug('Creating room payload:', { ...payload, startTime: payload.startTime, endTime: payload.endTime }); } catch (e) {}
 
-        const res = await fetch(`${API_BASE || ''}/api/library/rooms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const text = await res.text().catch(() => null);
-          throw new Error(text || 'Server returned an error');
-        }
+        const res = await axios.post(`/api/library/rooms`, payload);
         // refresh full list from server to reflect DB state
-        const listRes = await fetch(`${API_BASE || ''}/api/library/rooms`);
-        if (listRes.ok) {
-          const listJson = await listRes.json();
+        const listRes = await axios.get('/api/library/rooms');
+        const listJson = listRes.data;
           const list = (listJson.rooms || []).map((r) => {
             const occupantIds = (r.occupants || []).map((o) => (o && (o._id || o.toString())) || String(o));
             const occupantNames = (r.occupants || []).map((o) => (o && o.name) || (typeof o === 'string' ? o : ''));
@@ -313,7 +323,6 @@ export default function LibraryInvite() {
             return { ...r, id, occupants: occupantIds, occupantNames, occupantAvatars, joined };
           });
           setRooms(list);
-        }
       } catch (err) {
           console.error('Create room API failed:', err);
           const msg = (err && err.message) || 'Tạo phòng thất bại. Vui lòng thử lại.';
@@ -363,54 +372,39 @@ export default function LibraryInvite() {
 
   // Auto-hide toast
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
+    if (!toastInfo) return;
+    const t = setTimeout(() => setToastInfo(null), 3000);
     return () => clearTimeout(t);
-  }, [toast]);
+  }, [toastInfo]);
 
   async function handleModalSend() {
     if (!selectedUserId) return toast.error('Vui lòng chọn một người để mời.');
     if (!modalRoom) return;
 
     try {
-      const res = await fetch(`${API_BASE || ''}/api/library/rooms/${modalRoom.id}/invites`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({
-          senderId: ctxUser.id || ctxUser._id,
-          receiverId: selectedUserId,
-          note: `Mời tham gia phòng ${modalRoom.name}`,
-        }),
+      const res = await axios.post(`/api/library/rooms/${modalRoom.id}/invites`, {
+        senderId: ctxUser.id || ctxUser._id,
+        receiverId: selectedUserId,
+        note: `Mời tham gia phòng ${modalRoom.name}`,
       });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return toast.error(data.message || 'Gửi lời mời thất bại.');
 
       // On success, close modal and refresh
       closeInviteModal();
-      setToast({ msg: 'Gửi lời mời thành công!', type: 'success' });
+      setToastInfo({ msg: 'Gửi lời mời thành công!', type: 'success' });
     } catch (err) {
       console.error('Send invite failed:', err);
-      toast.error('Gửi lời mời thất bại. Vui lòng thử lại.');
+      toast.error(err.response?.data?.message || 'Gửi lời mời thất bại. Vui lòng thử lại.');
     }
   }
 
   async function acceptInvite(roomId, inviteId) {
     if (!ctxUser) return toast.error('Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`${API_BASE || ''}/api/library/rooms/${roomId}/invites/${inviteId}/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ userId: ctxUser.id || ctxUser._id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return toast.error(data.message || 'Chấp nhận lời mời thất bại.');
+      await axios.post(`/api/library/rooms/${roomId}/invites/${inviteId}/accept`, { userId: ctxUser.id || ctxUser._id });
 
       // On success, refresh rooms list to update occupants
-      const listRes = await fetch(`${API_BASE || ''}/api/library/rooms`);
-        if (listRes.ok) {
-          const listJson = await listRes.json();
-          const list = (listJson.rooms || []).map((r) => {
+      const listRes = await axios.get('/api/library/rooms');
+      const list = (listRes.data.rooms || []).map((r) => {
             const occupantIds = (r.occupants || []).map((o) => (o && (o._id || o.toString())) || String(o));
             const occupantNames = (r.occupants || []).map((o) => (o && o.name) || (typeof o === 'string' ? o : ''));
             const occupantAvatars = (r.occupants || []).map((o) => (o && typeof o === 'object' ? (o.avatar || o.photo || null) : null));
@@ -420,32 +414,25 @@ export default function LibraryInvite() {
             return { ...r, id, occupants: occupantIds, occupantNames, occupantAvatars, joined, createdBy, startTime: r.startTime, endTime: r.endTime };
           });
           setRooms(list);
-        }
 
       // Remove the accepted invite from display
       setInvites((s) => s.filter((inv) => !(inv.roomId === roomId && inv._id === inviteId)));
     } catch (err) {
       console.error('Accept invite failed:', err);
-      toast.error('Chấp nhận lời mời thất bại. Vui lòng thử lại.');
+      toast.error(err.response?.data?.message || 'Chấp nhận lời mời thất bại. Vui lòng thử lại.');
     }
   }
 
   async function rejectInvite(roomId, inviteId) {
     if (!ctxUser) return toast.error('Vui lòng đăng nhập.');
     try {
-      const res = await fetch(`${API_BASE || ''}/api/library/rooms/${roomId}/invites/${inviteId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ userId: ctxUser.id || ctxUser._id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) return toast.error(data.message || 'Từ chối lời mời thất bại.');
+      await axios.post(`/api/library/rooms/${roomId}/invites/${inviteId}/reject`, { userId: ctxUser.id || ctxUser._id });
 
       // Remove the rejected invite from display
       setInvites((s) => s.filter((inv) => !(inv.roomId === roomId && inv._id === inviteId)));
     } catch (err) {
       console.error('Reject invite failed:', err);
-      toast.error('Từ chối lời mời thất bại. Vui lòng thử lại.');
+      toast.error(err.response?.data?.message || 'Từ chối lời mời thất bại. Vui lòng thử lại.');
     }
   }
 
@@ -565,6 +552,14 @@ export default function LibraryInvite() {
                         >
                           Mời
                         </button>
+                        {room.joined && ctxUser && !(room.createdBy && String(room.createdBy) === String(ctxUser.id || ctxUser._id)) && (
+                          <button
+                            onClick={() => leaveRoom(room.id)}
+                            className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold text-orange-600 border border-orange-200 hover:bg-orange-50 transition-colors"
+                          >
+                            <LogOut className="h-3.5 w-3.5" /> Rời
+                          </button>
+                        )}
                         {ctxUser && room.createdBy && String(room.createdBy) === String(ctxUser.id || ctxUser._id) && (
                           <button onClick={() => openDeleteConfirm(room.id)} className="rounded-full px-3 py-1 text-sm font-semibold text-rose-600 border border-rose-100 hover:bg-rose-50">Xóa</button>
                         )}
@@ -634,6 +629,14 @@ export default function LibraryInvite() {
                     Bạn chưa có người matching nào. Hãy dùng chức năng Match để tìm người.
                   </div>
                 ) : (
+                  (() => {
+                    const roomOccupants = new Set((modalRoom?.occupants || []).map(String));
+                    const available = matchedUsers.filter(u => !roomOccupants.has(String(u.userId || u.id || u._id)));
+                    return available.length === 0 ? (
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                        Tất cả bạn match đều đã ở trong phòng rồi.
+                      </div>
+                    ) : (
                   <label className="block text-sm">
                     <span className="text-xs text-slate-500">Chọn người để mời</span>
                     <select
@@ -642,13 +645,15 @@ export default function LibraryInvite() {
                       className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm"
                     >
                       <option value="">-- Chọn người --</option>
-                      {matchedUsers.map(user => (
+                      {available.map(user => (
                         <option key={user.userId || user.id || user._id} value={user.userId || user.id}>
                           {user.name}
                         </option>
                       ))}
                     </select>
                   </label>
+                    );
+                  })()
                 )}
               </div>
 
@@ -674,7 +679,7 @@ export default function LibraryInvite() {
 
               <div className="mt-4 grid gap-3">
                 <label className="block text-sm">
-                  <span className="text-xs text-slate-500">Tên phòng</span>
+                  <span className="text-xs text-slate-500">Tên phòng (Phòng - Tòa)</span>
                   <input value={createName} onChange={(e) => setCreateName(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                 </label>
 
@@ -841,10 +846,10 @@ export default function LibraryInvite() {
         )}
 
         {/* Toast */}
-        {toast && (
+        {toastInfo && (
           <div className="fixed top-6 right-6 z-50">
-            <div className={`max-w-xs rounded-lg px-4 py-2 shadow-lg ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
-              {toast.msg}
+            <div className={`max-w-xs rounded-lg px-4 py-2 shadow-lg ${toastInfo.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+              {toastInfo.msg}
             </div>
           </div>
         )}

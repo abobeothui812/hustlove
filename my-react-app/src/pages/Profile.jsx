@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../utils/axiosConfig';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -25,7 +25,7 @@ const pastelGradient = 'bg-[#fff5f8]';
 
 const defaultForm = {
   name: '',
-  age: '',
+  dob: '',
   height: '',
   gender: '',
   career: '',
@@ -41,9 +41,9 @@ const defaultForm = {
 };
 
 const genderOptions = [
-  { value: 'Nam', label: 'Nam' },
-  { value: 'Nữ', label: 'Nữ' },
-  { value: 'Khác', label: 'Khác' },
+  { value: 'Male', label: 'Nam' },
+  { value: 'Female', label: 'Nữ' },
+  { value: 'Other', label: 'Khác' },
 ];
 
 const facultyOptions = [
@@ -79,7 +79,7 @@ const normalizeHeightValue = (value, { asString = false } = {}) => {
 export default function Profile() {
   const navigate = useNavigate();
   const API_URL = import.meta.env.VITE_API_URL;
-  const { user: currentUser, updateUser, token } = useAuth();
+  const { user: currentUser, updateUser } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -229,7 +229,7 @@ export default function Profile() {
 
         setFormData({
           name: user?.name || '',
-          age: user?.age || '',
+          dob: user?.dob ? new Date(user.dob).toISOString().split('T')[0] : '',
           height: normalizeHeightValue(user?.height, { asString: true }),
           gender: user?.gender || '',
           career: user?.career && user.career !== 'Not updated' ? user.career : '',
@@ -346,29 +346,24 @@ export default function Profile() {
     try {
       const payload = {
         name: formData.name.trim(),
-        age: formData.age,
+        dob: formData.dob || undefined,
         gender: formData.gender,
         height: normalizedHeightForSubmit,
         career: formData.career.trim(),
         classYear: formData.classYear.trim(),
-        location: formData.location.trim(),
-        hometown: formData.hometown.trim(),
+        location: formData.hometown.trim() || formData.location.trim(),
         zodiac: formData.zodiac.trim(),
-        lookingFor: formData.lookingFor,
-        ageRange: formData.ageRange,
         bio: formData.bio.trim(),
         hobbies: formData.hobbies,
         photoGallery: formData.photoGallery,
         avatar: formData.photoGallery[0] || profile?.avatar || '',
+        preferences: {
+          lookingFor: formData.lookingFor,
+          ageRange: formData.ageRange,
+        },
       };
 
-      const res = await axios.put(`${API_URL}/api/users/${userId}/profile`, payload, {
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        withCredentials: true,
-      });
+      const res = await axios.put(`${API_URL}/api/users/${userId}/profile`, payload);
 
       const nextUser = res.data?.user;
       if (!nextUser) {
@@ -478,17 +473,14 @@ export default function Profile() {
               </label>
               <label className="space-y-2 text-sm font-semibold text-slate-600">
                 <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-rose-400">
-                  <Sparkles className="h-3.5 w-3.5" /> Tuổi
+                  <Sparkles className="h-3.5 w-3.5" /> Ngày sinh
                 </span>
                 <input
-                  type="number"
-                  min={18}
-                  max={99}
+                  type="date"
                   disabled={!isEditing}
-                  value={formData.age}
-                  onChange={(event) => handleFieldChange('age', event.target.value)}
+                  value={formData.dob}
+                  onChange={(event) => handleFieldChange('dob', event.target.value)}
                   className="w-full rounded-3xl border border-rose-100 bg-white px-5 py-3 text-sm text-slate-700 shadow-sm transition focus:border-rose-300 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:cursor-not-allowed"
-                  placeholder="Ví dụ: 21"
                 />
               </label>
               <label className="space-y-2 text-sm font-semibold text-slate-600">

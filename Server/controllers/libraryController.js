@@ -290,6 +290,42 @@ export const joinRoom = async (req, res) => {
   }
 };
 
+export const leaveRoom = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) return res.status(400).json({ success: false, message: 'userId is required.' });
+
+    const room = await LibraryRoom.findById(id);
+    if (!room) return res.status(404).json({ success: false, message: 'Không tìm thấy phòng.' });
+
+    const occupantsStr = room.occupants.map((o) => o.toString());
+    if (!occupantsStr.includes(String(userId))) {
+      return res.status(400).json({ success: false, message: 'Bạn không ở trong phòng này.' });
+    }
+
+    // Don't let the room creator leave — they should delete instead
+    const ownerId = room.createdBy ? room.createdBy.toString() : null;
+    if (ownerId && ownerId === String(userId)) {
+      return res.status(400).json({ success: false, message: 'Chủ phòng không thể rời. Hãy xóa phòng nếu muốn.' });
+    }
+
+    room.occupants = room.occupants.filter((o) => o.toString() !== String(userId));
+    await room.save();
+
+    const populatedRoom = await LibraryRoom.findById(id)
+      .populate('occupants', 'name avatar')
+      .populate('createdBy', 'name avatar')
+      .lean();
+
+    res.json({ success: true, room: populatedRoom });
+  } catch (err) {
+    console.error('❌ Failed to leave room:', err);
+    res.status(500).json({ success: false, message: 'Lỗi server khi rời phòng.' });
+  }
+};
+
 export const deleteRoom = async (req, res) => {
   try {
     const { id } = req.params;

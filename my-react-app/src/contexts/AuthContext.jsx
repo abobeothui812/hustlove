@@ -161,8 +161,21 @@ export function AuthProvider({ children }) {
       writeStoredAuth(null, null);
     };
 
+    const handleTokenRefreshed = (e) => {
+      const newToken = e.detail?.accessToken;
+      if (newToken) {
+        setTokenState(newToken);
+        // Also update localStorage so AuthContext stays in sync
+        localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
+      }
+    };
+
     window.addEventListener('sessionExpired', handleSessionExpired);
-    return () => window.removeEventListener('sessionExpired', handleSessionExpired);
+    window.addEventListener('tokenRefreshed', handleTokenRefreshed);
+    return () => {
+      window.removeEventListener('sessionExpired', handleSessionExpired);
+      window.removeEventListener('tokenRefreshed', handleTokenRefreshed);
+    };
   }, []);
 
   /**
@@ -284,6 +297,16 @@ export function useAuth() {
   const context = useContext(AuthContext);
   
   if (!context) {
+    // During HMR / React Refresh the provider may temporarily be absent.
+    // Return a safe stub so the tree can re-render without crashing.
+    if (import.meta.hot) {
+      return {
+        user: null, token: null, isLoading: true, isInitialized: false,
+        isAuthenticated: false, userId: null,
+        login: () => {}, logout: () => {}, updateUser: () => {},
+        refreshUser: async () => null, setUser: () => {},
+      };
+    }
     throw new Error('useAuth must be used within an AuthProvider');
   }
   

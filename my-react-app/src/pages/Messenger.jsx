@@ -204,7 +204,7 @@ const MessageInput = memo(function MessageInput({ value, onChange, onSend, onTyp
         }
       } catch (err) {
         console.error('Upload chat image failed', err);
-        toast.error('Lỗi khi tải ảnh.');
+        toast.error(err.response?.data?.message || 'Lỗi khi tải ảnh.');
       } finally {
         event.target.value = '';
       }
@@ -344,7 +344,7 @@ const ChatHeader = memo(function ChatHeader({ conversation, isTyping, showMenu, 
   );
 });
 
-function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConversationId, setConversations, myCrushMatch, myCrushIsMutual, setMyCrushMatch, setMyCrushIsMutual }) {
+function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConversationId, setConversations, myCrushMatch, myCrushIsMutual, setMyCrushMatch, setMyCrushIsMutual, getAuthToken }) {
   const messagesRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
@@ -491,7 +491,7 @@ function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConver
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId, API_URL, user?.id, socket]);
+  }, [selectedConversationId, API_URL, user?.id, socket, getAuthToken]);
 
   const loadOlderMessages = useCallback(async () => {
     const conversationId = selectedConversationId;
@@ -537,7 +537,7 @@ function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConver
     } finally {
       loadingMoreRef.current = false;
     }
-  }, [selectedConversationId, API_URL, user?.id]);
+  }, [selectedConversationId, API_URL, user?.id, getAuthToken]);
 
   useEffect(() => () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -641,11 +641,11 @@ function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConver
       }
     } catch (err) {
       console.error('Crush action failed', err);
-      toast.error('Lỗi kết nối');
+      toast.error(err.response?.data?.message || 'Lỗi kết nối');
     } finally {
       setCrushLoading(false);
     }
-  }, [selectedConversation, API_URL, user?.id, myCrushMatch, setMyCrushMatch, setMyCrushIsMutual]);
+  }, [selectedConversation, API_URL, user?.id, myCrushMatch, setMyCrushMatch, setMyCrushIsMutual, getAuthToken]);
 
   const handleMessagesScroll = useCallback(() => {
     const container = messagesRef.current;
@@ -799,7 +799,7 @@ function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConver
                 toast.success(res.data?.message || 'Đã báo cáo');
               } catch (err) {
                 console.error('Report failed', err);
-                toast.error('Báo cáo thất bại');
+                toast.error(err.response?.data?.message || 'Báo cáo thất bại');
               } finally {
                 setActionLoading(false);
               }
@@ -827,7 +827,7 @@ function ChatPanel({ API_URL, socket, user, selectedConversation, selectedConver
                 setSelectedConversationId(null);
               } catch (err) {
                 console.error('Block failed', err);
-                toast.error('Chặn thất bại');
+                toast.error(err.response?.data?.message || 'Chặn thất bại');
               } finally {
                 setActionLoading(false);
               }
@@ -900,7 +900,7 @@ function MessengerPage() {
     };
 
     fetchConversations();
-  }, [user?.id, API_URL]);
+  }, [user?.id, API_URL, getAuthToken]);
 
   // ========== FETCH CURRENT USER CRUSH (persist indicator across reloads) ==========
   useEffect(() => {
@@ -993,7 +993,7 @@ function MessengerPage() {
 
     socket.on('mutual_match', handleMutual);
     return () => socket.off('mutual_match', handleMutual);
-  }, [socket, user?.id, API_URL]);
+  }, [socket, user?.id, API_URL, getAuthToken]);
 
   // ========== ROUTE PARAM: /messenger/:id ==========
   useEffect(() => {
@@ -1087,6 +1087,7 @@ function MessengerPage() {
                 myCrushIsMutual={myCrushIsMutual}
                 setMyCrushMatch={setMyCrushMatch}
                 setMyCrushIsMutual={setMyCrushIsMutual}
+                getAuthToken={getAuthToken}
               />
             </div>
           </section>

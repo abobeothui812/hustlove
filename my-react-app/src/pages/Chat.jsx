@@ -306,7 +306,11 @@ export default function RandomChat() {
             <div className="text-sm font-semibold text-rose-600">Tài khoản</div>
             {user ? (
               <div className="flex flex-col items-center gap-3">
-                <div className="w-20 h-20 rounded-xl bg-rose-50 flex items-center justify-center text-3xl">{user.gender === 'Nam' ? '👨' : user.gender === 'Nữ' ? '👩' : '🧑'}</div>
+                {user.avatar ? (
+                  <img src={user.avatar} alt={user.name} className="w-20 h-20 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-rose-50 flex items-center justify-center text-2xl font-bold text-rose-400">{user.name?.charAt(0)?.toUpperCase()}</div>
+                )}
                 <div className="text-sm font-semibold text-slate-800">{user.name}</div>
                 <div className="text-xs text-slate-500">{user.age} • {user.hometown || user.location}</div>
                 <button onClick={() => navigate('/profile')} className="mt-3 rounded-full bg-rose-400 px-4 py-2 text-xs font-semibold text-white">Chỉnh sửa hồ sơ</button>
@@ -330,7 +334,11 @@ export default function RandomChat() {
                   <div className="relative bg-white p-6 rounded-2xl shadow-md">
                     {user && (
                       <div className="text-center mb-6">
-                        <div className="w-28 h-28 rounded-xl bg-rose-50 mx-auto flex items-center justify-center text-5xl">{user.gender === 'Nam' ? '👨' : user.gender === 'Nữ' ? '👩' : '🧑'}</div>
+                        {user.avatar ? (
+                          <img src={user.avatar} alt={user.name} className="w-28 h-28 rounded-xl mx-auto object-cover" />
+                        ) : (
+                          <div className="w-28 h-28 rounded-xl bg-rose-50 mx-auto flex items-center justify-center text-3xl font-bold text-rose-400">{user.name?.charAt(0)?.toUpperCase()}</div>
+                        )}
                         <h2 className="text-xl font-bold mt-3">{user.name}</h2>
                         <p className="text-sm text-slate-500">{user.gender} • {user.age} tuổi</p>
                         {user.hometown && <p className="text-sm text-slate-400">📍 {user.hometown}</p>}
@@ -367,7 +375,11 @@ export default function RandomChat() {
                   <div className="bg-rose-50 p-3 sm:p-4 border-b">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">{partner.gender === 'Nam' ? '👨' : partner.gender === 'Nữ' ? '👩' : '🧑'}</div>
+                        {partner.avatar ? (
+                          <img src={partner.avatar} alt={partner.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white flex items-center justify-center text-lg font-bold text-rose-400 flex-shrink-0">{partner.name?.charAt(0)?.toUpperCase()}</div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <h3 className="font-semibold text-slate-800 truncate text-sm sm:text-base">{partner.name}</h3>
                           <p className="text-xs text-slate-500 truncate">{partner.gender} • {partner.age} tuổi{partner.hometown ? ` • ${partner.hometown}` : ''}</p>

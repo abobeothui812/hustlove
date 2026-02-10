@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, useContext } from 'react';
+﻿import { useEffect, useMemo, useState, useContext } from 'react';
 // ✅ IMPORT THÊM các icon liên quan đến ảnh
 import { Heart, MessageCircle, Send, X, Trash2, MoreHorizontal, Image, XCircle } from 'lucide-react'; 
 import { SocketContext } from '../contexts';
 import { useAuth } from '../contexts/AuthContext';
+import axios from '../utils/axiosConfig';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../components/ConfirmModal';
 import InputModal from '../components/InputModal';
@@ -10,7 +11,7 @@ import InputModal from '../components/InputModal';
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function Community() {
-  const { user: storedUser, token } = useAuth();
+  const { user: storedUser } = useAuth();
   const userId = storedUser?.id || storedUser?._id;
   const [posts, setPosts] = useState([]);
   const [content, setContent] = useState('');
@@ -85,11 +86,9 @@ export default function Community() {
         /* (logic fetch blockedUsers) */
         
         // Fetch posts
-        const res = await fetch(`${API_URL}/api/posts?userId=${userId}`);
-        const data = await res.json();
+        const res = await axios.get('/api/posts', { params: { userId } });
+        const data = res.data;
         
-       if (data.posts?.[0]) {
-         }
         
         setPosts(data.posts || []);
       } catch (err) {
@@ -284,16 +283,8 @@ setPosts(prev =>
     setShowMenu({});
 
     try {
-        const res = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-        });
-
-        const responseData = await res.json();
-       if (!res.ok) {
-            throw new Error(responseData.message || 'Yêu cầu thất bại từ Server');
-        }
+const res = await axios.post(apiUrl, requestBody);
+        const responseData = res.data;
 
         const message = type === 'block' 
             ? `Đã chặn ${targetName} thành công.` 
@@ -353,20 +344,8 @@ setPosts(prev =>
 		try {
 			setSubmitting(true);
 			console.debug('Creating post', { userId: uid, hasImage: !!selectedImage, contentLength: (content||'').length });
-			const res = await fetch(`${API_URL}/api/posts`, {
-				method: 'POST',
-				// Let browser set Content-Type for FormData; include Authorization if present
-				headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-				body: formData,
-			});
-
-			if (!res.ok) {
-				const errorData = await res.json().catch(() => ({}));
-				throw new Error(errorData.error || errorData.message || 'Lỗi tạo bài viết');
-			}
-
-			// ✅ FIX REALTIME: Lấy bài đăng mới từ response
-			const data = await res.json();
+			const res = await axios.post('/api/posts', formData);
+			const data = res.data;
 			const newPost = data.post; 
       
 // ✅ FIX REALTIME: Cập nhật state posts ngay lập tức
@@ -390,33 +369,25 @@ return [newPost, ...prev];
   // ==============================
   // TOGGLE LIKE - giữ nguyên
   // ==============================
-  const toggleLike = async postId => {
-    try {
-     const res = await fetch(`${API_URL}/api/posts/${postId}/like`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
+  const toggleLike = async postId => {
+    try {
+      const res = await axios.post(`/api/posts/${postId}/like`, { userId });
+      const data = res.data;
+    } catch (err) {
+      console.error('Toggle like error:', err);
+      toast.error(err.message || 'Lỗi thích bài viết');
+    }
+  };
 
-      const data = await res.json();
-     if (data.success) {
-       }
-    } catch (err) {
-      console.error('Toggle like error:', err);
-      toast.error('Lỗi thích bài viết');
-    }
-  };
-
-  // ==============================
-  // FETCH COMMENTS - giữ nguyên
+  // ==============================  // FETCH COMMENTS - giữ nguyên
   // ==============================
   const fetchComments = async (postId) => {
     try {
       setLoadingComments(prev => ({ ...prev, [postId]: true }));
       
       // ✅ THÊM userId vào query để backend filter được
-      const res = await fetch(`${API_URL}/api/posts/${postId}/comments?userId=${userId}`);
-      const data = await res.json();
+const res = await axios.get(`/api/posts/${postId}/comments`, { params: { userId } });
+      const data = res.data;
 
       setPosts(prev =>
         prev.map(p =>
@@ -444,16 +415,8 @@ return [newPost, ...prev];
     try {
       setCommentText(prev => ({ ...prev, [postId]: '' }));
 
-      const res = await fetch(`${API_URL}/api/posts/${postId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          content: text
-        }),
-      });
-
-      const data = await res.json();
+      const res = await axios.post(`/api/posts/${postId}/comments`, { userId, content: text });
+      const data = res.data;
 
       if (!data.success) {
         throw new Error(data.error || 'Lỗi bình luận');
@@ -498,27 +461,13 @@ return [newPost, ...prev];
 
   const executeDeletePost = async (postId) => {
     try {
-      const res = await fetch(`${API_URL}/api/posts/${postId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        // ✅ Xóa ngay khỏi UI (optimistic update)
-        setPosts(prev => prev.filter(p => p._id !== postId));
-        toast.success('Xóa bài viết thành công!');
-      } else {
-        throw new Error(data.error || 'Không thể xóa bài viết');
-      }
-    } catch (err) {
-      console.error('Delete post error:', err);
-      toast.error(err.message || 'Lỗi xóa bài viết');
-    }
-  };
-
+      await axios.delete(`/api/posts/${postId}`, { data: { userId } });
+      setPosts(prev => prev.filter(p => p._id !== postId));
+      toast.success('Xóa bài viết thành công!');
+    } catch (err) {
+      console.error('Delete post error:', err);
+      toast.error(err.response?.data?.error || err.message || 'Lỗi xóa bài viết');    }
+  };
   // ==============================
   // DELETE COMMENT
   // ==============================
@@ -533,37 +482,24 @@ return [newPost, ...prev];
 
   const executeDeleteComment = async (commentId, postId) => {
     try {
-      const res = await fetch(`${API_URL}/api/comments/${commentId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        // ✅ Optimistic update: Xóa comment và giảm count ngay
-        setPosts(prev =>
-          prev.map(p =>
-            p._id === postId
-              ? { 
-                  ...p, 
-                  commentCount: Math.max(0, (p.commentCount || 0) - 1),
-                  comments: p.comments?.filter(c => c._id !== commentId)
-                }
-              : p
-          )
-        );
-        
-        toast.success('Xóa bình luận thành công!');
-      } else {
-        throw new Error(data.error || 'Không thể xóa bình luận');
-      }
-    } catch (err) {
-      console.error('Delete comment error:', err);
-      toast.error(err.message || 'Lỗi xóa bình luận');
-    }
-  };
+      await axios.delete(`/api/comments/${commentId}`, { data: { userId } });
+      setPosts(prev =>
+        prev.map(p =>
+          p._id === postId
+            ? { 
+                ...p, 
+                commentCount: Math.max(0, (p.commentCount || 0) - 1),
+                comments: p.comments?.filter(c => c._id !== commentId)
+              }
+            : p
+        )
+      );
+      toast.success('Xóa bình luận thành công!');
+    } catch (err) {
+      console.error('Delete comment error:', err);
+      toast.error(err.response?.data?.error || err.message || 'Lỗi xóa bình luận');
+    }
+  };
 
 	return (
 		<div className="min-h-screen bg-gradient-to-br from-[#fff4f6] via-[#fff8fb] to-[#fffaf6]">

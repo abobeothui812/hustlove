@@ -1,5 +1,5 @@
 import express from 'express';
-import { createRoom, listRooms, getRoom, createInviteForRoom, joinRoom, deleteRoom, acceptInvite, rejectInvite } from '../controllers/libraryController.js';
+import { createRoom, listRooms, getRoom, createInviteForRoom, joinRoom, leaveRoom, deleteRoom, acceptInvite, rejectInvite } from '../controllers/libraryController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -18,6 +18,9 @@ router.post('/rooms/:id/invites', requireAuth, createInviteForRoom);
 
 // POST /api/library/rooms/:id/join -> join room (adds user to occupants)
 router.post('/rooms/:id/join', requireAuth, joinRoom);
+
+// POST /api/library/rooms/:id/leave -> leave room (removes user from occupants)
+router.post('/rooms/:id/leave', requireAuth, leaveRoom);
 
 // DELETE /api/library/rooms/:id -> delete room (owner only)
 router.delete('/rooms/:id', requireAuth, deleteRoom);
